@@ -4,12 +4,10 @@ import { supabase } from '../supabase.js'
 import { money } from '../utils/format.js'
 
 const ESTADO = {
-  pendiente:   { label: 'Pendiente',   cls: 'badge-yellow' },
-  confirmado:  { label: 'Confirmado',  cls: 'badge-green'  },
-  preparando:  { label: 'Preparando',  cls: 'badge-green'  },
-  en_camino:   { label: 'En camino',   cls: 'badge-green'  },
-  entregado:   { label: 'Entregado',   cls: 'badge-gray'   },
-  cancelado:   { label: 'Cancelado',   cls: 'badge-red'    },
+  pendiente:  { label: 'Pendiente',  cls: 'badge-yellow' },
+  confirmado: { label: 'Confirmado', cls: 'badge-green'  },
+  preparando: { label: 'Preparando', cls: 'badge-green'  },
+  en_camino:  { label: 'En camino',  cls: 'badge-green'  },
 }
 
 export default function MiPedido() {
@@ -31,18 +29,19 @@ export default function MiPedido() {
     setLoading(true)
     setError('')
     setSaveMsg('')
+    setEditandoId(null)
 
     const { data, error: err } = await supabase
       .from('pedidos')
       .select('*, detalle_pedidos(*)')
       .eq('telefono_contacto', telefono.trim())
+      .in('estado', ['pendiente', 'confirmado', 'preparando', 'en_camino'])
       .order('created_at', { ascending: false })
 
     if (err) { setError(err.message); setLoading(false); return }
     setPedidos(data || [])
     setBuscado(true)
     setLoading(false)
-    setEditandoId(null)
   }
 
   function iniciarEdicion(pedido) {
@@ -80,7 +79,9 @@ export default function MiPedido() {
   return (
     <div className="grid" style={{ gap: 16 }}>
       <h1 className="page-title">Mi Pedido</h1>
-      <p className="page-subtitle" style={{ marginBottom: 0 }}>Consulta el estado de tu pedido y edita tus datos si algo está mal.</p>
+      <p className="page-subtitle" style={{ marginBottom: 0 }}>
+        Consulta tus pedidos activos y edita tus datos si algo está mal.
+      </p>
 
       <form className="card grid" style={{ gap: 10 }} onSubmit={buscar}>
         <label style={{ fontWeight: 700, fontSize: 14 }}>¿Con qué teléfono hiciste tu pedido?</label>
@@ -103,18 +104,17 @@ export default function MiPedido() {
       {saveMsg ? <div className="success">{saveMsg}</div> : null}
 
       {buscado && pedidos.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '28px 16px' }}>
-          <div style={{ fontSize: 44, marginBottom: 8 }}>📦</div>
-          <strong>No encontramos pedidos</strong>
+        <div className="card" style={{ textAlign: 'center', padding: '32px 16px' }}>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>✅</div>
+          <strong>No tienes pedidos pendientes</strong>
           <p className="muted" style={{ margin: '6px 0 0', fontSize: 13 }}>
-            Verifica que el teléfono sea el mismo que usaste al hacer el pedido.
+            Todos tus pedidos han sido entregados o no hay pedidos activos con ese teléfono.
           </p>
         </div>
       ) : null}
 
       {pedidos.map((pedido) => {
         const estado = ESTADO[pedido.estado] || { label: pedido.estado, cls: 'badge-gray' }
-        const editable = pedido.estado === 'pendiente'
         const isEditing = editandoId === pedido.id
 
         return (
@@ -128,7 +128,9 @@ export default function MiPedido() {
             </div>
 
             <div style={{ fontSize: 12, color: 'var(--mall-muted)' }}>
-              {new Date(pedido.created_at).toLocaleDateString('es-GT', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {new Date(pedido.created_at).toLocaleDateString('es-GT', {
+                day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+              })}
             </div>
 
             <div className="grid" style={{ gap: 8 }}>
@@ -140,7 +142,7 @@ export default function MiPedido() {
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, paddingTop: 4 }}>
-                <span>Total</span>
+                <span>Total pagado</span>
                 <span className="price">{money(pedido.monto_total)}</span>
               </div>
             </div>
@@ -150,7 +152,7 @@ export default function MiPedido() {
                 <div><span className="muted">Entrega: </span><strong>{pedido.horario || pedido.hora_entrega_asignada || '—'}</strong></div>
                 <div><span className="muted">Dirección: </span>{pedido.direccion_entrega}</div>
                 <div><span className="muted">Teléfono: </span>{pedido.telefono_contacto || '—'}</div>
-                {editable ? (
+                {pedido.estado === 'pendiente' ? (
                   <button className="btn-outline" type="button" onClick={() => iniciarEdicion(pedido)} style={{ marginTop: 4 }}>
                     <Edit2 size={14} /> Editar datos de entrega
                   </button>
@@ -169,9 +171,7 @@ export default function MiPedido() {
                   <input className="input-field" placeholder="Teléfono de contacto" value={editTelefono} onChange={(e) => setEditTelefono(e.target.value)} />
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn-outline" type="button" onClick={() => setEditandoId(null)} style={{ flex: 1 }}>
-                    Cancelar
-                  </button>
+                  <button className="btn-outline" type="button" onClick={() => setEditandoId(null)} style={{ flex: 1 }}>Cancelar</button>
                   <button className="btn-primary" type="button" onClick={() => guardar(pedido.id)} disabled={saving} style={{ flex: 2 }}>
                     {saving ? 'Guardando...' : 'Guardar cambios'}
                   </button>

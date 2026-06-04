@@ -23,11 +23,11 @@ export function usePedidos() {
     const config = Object.fromEntries((data || []).map((item) => [item.clave, item.valor]))
     return {
       monto_minimo_domicilio: Number(config.monto_minimo_domicilio || 20),
-      monto_cupon_domicilio: Number(config.monto_cupon_domicilio || 150),
-      valor_cupon_domicilio: Number(config.valor_cupon_domicilio || 10),
+      monto_cupon_domicilio:  Number(config.monto_cupon_domicilio  || 150),
+      valor_cupon_domicilio:  Number(config.valor_cupon_domicilio  || 10),
       dias_vencimiento_cupon: Number(config.dias_vencimiento_cupon || 14),
-      max_pedidos_manana: Number(config.max_pedidos_manana || 6),
-      max_pedidos_tarde: Number(config.max_pedidos_tarde || 6),
+      max_pedidos_manana:     Number(config.max_pedidos_manana     || 6),
+      max_pedidos_tarde:      Number(config.max_pedidos_tarde      || 6),
       slots_entrega: parseSlots(config.slots_entrega),
     }
   }
@@ -68,10 +68,12 @@ export function usePedidos() {
     ]
   }
 
+  // descuento_cupon: monto a descontar del total (0 si el cliente guarda el cupón)
   async function crearPedido(payload) {
     const config = await getConfiguracion()
-    const total = Number(payload.monto_total || 0)
-    const generaCupon = Boolean(payload.cliente_id) && total >= config.monto_cupon_domicilio
+    const totalBruto = Number(payload.monto_total || 0)
+    const descuento  = Number(payload.descuento_cupon || 0)
+    const totalFinal = Math.max(totalBruto - descuento, 0)
 
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
@@ -82,9 +84,9 @@ export function usePedidos() {
         longitud: payload.longitud || null,
         horario: payload.horario,
         hora_entrega_asignada: payload.hora_entrega_asignada,
-        monto_total: total,
+        monto_total: totalFinal,
         estado: 'pendiente',
-        genera_cupon: generaCupon,
+        genera_cupon: false,
         telefono_contacto: payload.telefono_contacto || null,
       })
       .select()
@@ -103,6 +105,22 @@ export function usePedidos() {
 
     const { error: detalleError } = await supabase.from('detalle_pedidos').insert(detalle)
     if (detalleError) throw detalleError
+
+    // Si el cliente guarda el cupón, crearlo ahora
+    if (payload.guardarCupon && payload.cliente_id) {
+      const codigo = payload.codigoCupon
+      const dias   = config.dias_vencimiento_cupon
+      const vence  = new Date(Date.now() + dias * 24 * 60 * 60 * 1000).toISOString()
+      await supabase.from('cupones').insert({
+        codigo,
+        cliente_id: payload.cliente_id,
+        pedido_id: pedido.id,
+        valor: config.valor_cupon_domicilio,
+        estado: 'activo',
+        fecha_emision: new Date().toISOString(),
+        fecha_vencimiento: vence,
+      })
+    }
 
     return pedido
   }

@@ -37,6 +37,8 @@ export default function MisCupones() {
       .from('cupones')
       .select('*')
       .eq('cliente_id', clienteData.id)
+      .eq('estado', 'activo')
+      .gte('fecha_vencimiento', new Date().toISOString())
       .order('fecha_emision', { ascending: false })
 
     if (cuponError) setError(cuponError.message)
@@ -45,30 +47,23 @@ export default function MisCupones() {
     setLoading(false)
   }
 
-  const grouped = useMemo(() => ({
-    activos: cupones.filter((c) => c.estado === 'activo' && new Date(c.fecha_vencimiento) >= new Date()),
-    canjeados: cupones.filter((c) => c.estado === 'canjeado'),
-    vencidos: cupones.filter((c) => c.estado === 'vencido' || new Date(c.fecha_vencimiento) < new Date()),
-  }), [cupones])
-
   return (
     <div className="grid" style={{ gap: 16 }}>
       <section className="coupon-hero">
-        <div className="coupon-hero-icon">
-          <Ticket size={28} />
-        </div>
+        <div className="coupon-hero-icon"><Ticket size={28} /></div>
         <div>
           <h1 className="page-title" style={{ margin: 0, color: 'white', fontSize: 26 }}>Mis Cupones</h1>
           <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,.82)', fontSize: 13 }}>
-            Descuentos que puedes canjear en tienda física
+            Descuentos activos listos para canjear en tienda
           </p>
         </div>
       </section>
 
       <div className="card" style={{ background: '#fffdf0', border: '1px solid #f5e08a', padding: 14 }}>
-        <strong style={{ fontSize: 13 }}>¿Cómo funciona?</strong>
+        <strong style={{ fontSize: 13 }}>¿Cómo funciono?</strong>
         <p className="muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
-          Al hacer un pedido de <strong>Q150 o más</strong>, ganas un cupón de <strong>Q10</strong>. Muestra el código QR en tienda y te lo descontamos del total.
+          En pedidos de <strong>Q150 o más</strong> ganas un cupón de <strong>Q10</strong>.
+          Puedes usarlo inmediatamente en el mismo pedido o guardarlo para canjear presencialmente en tienda mostrando tu código QR.
         </p>
       </div>
 
@@ -85,20 +80,20 @@ export default function MisCupones() {
         </button>
       </form>
 
-      {loading ? <div className="card muted" style={{ textAlign: 'center', padding: 20 }}>Buscando tus cupones...</div> : null}
+      {loading ? <div className="card muted" style={{ textAlign: 'center', padding: 20 }}>Buscando...</div> : null}
       {error ? <div className="error">{error}</div> : null}
 
       {cliente ? (
         <div className="grid" style={{ gap: 14 }}>
           <div className="card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <strong>{cliente.nombre}</strong>
-            <span className="badge-green">{cupones.length} cupón{cupones.length !== 1 ? 'es' : ''}</span>
+            <span className="badge-green">{cupones.length} cupón{cupones.length !== 1 ? 'es' : ''} activo{cupones.length !== 1 ? 's' : ''}</span>
           </div>
 
-          {grouped.activos.length > 0 ? (
-            <div className="grid" style={{ gap: 10 }}>
-              <h2 className="font-display" style={{ margin: 0, fontSize: 18 }}>Activos — listos para canjear</h2>
-              {grouped.activos.map((cupon) => (
+          {cupones.length > 0 ? (
+            <div className="grid" style={{ gap: 12 }}>
+              <h2 className="font-display" style={{ margin: 0, fontSize: 18 }}>Listos para canjear</h2>
+              {cupones.map((cupon) => (
                 <article key={cupon.id} className="coupon-card-active">
                   <div className="coupon-card-header">
                     <Ticket size={17} />
@@ -120,41 +115,14 @@ export default function MisCupones() {
               ))}
             </div>
           ) : (
-            <div className="card" style={{ textAlign: 'center', padding: '28px 16px' }}>
-              <div style={{ fontSize: 44, marginBottom: 10 }}>🎟️</div>
+            <div className="card" style={{ textAlign: 'center', padding: '32px 16px' }}>
+              <div style={{ fontSize: 48, marginBottom: 10 }}>🎟️</div>
               <strong>No tienes cupones activos</strong>
               <p className="muted" style={{ margin: '6px 0 0', fontSize: 13 }}>
                 Haz un pedido de Q150 o más para ganar tu próximo cupón de Q10.
               </p>
             </div>
           )}
-
-          {grouped.canjeados.length > 0 ? (
-            <div className="grid" style={{ gap: 8 }}>
-              <h2 className="font-display" style={{ margin: 0, fontSize: 16 }}>Canjeados</h2>
-              {grouped.canjeados.map((cupon) => (
-                <div key={cupon.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px' }}>
-                  <div>
-                    <code style={{ fontSize: 12 }}>{cupon.codigo}</code>
-                    <div className="muted" style={{ fontSize: 12 }}>{cupon.descripcion_canje || 'Canjeado en tienda'}</div>
-                  </div>
-                  <span className="badge-gray">Canjeado</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          {grouped.vencidos.length > 0 ? (
-            <div className="grid" style={{ gap: 8 }}>
-              <h2 className="font-display" style={{ margin: 0, fontSize: 16 }}>Vencidos</h2>
-              {grouped.vencidos.map((cupon) => (
-                <div key={cupon.id} className="card" style={{ opacity: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px' }}>
-                  <code style={{ fontSize: 12 }}>{cupon.codigo}</code>
-                  <span className="badge-red">Vencido</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>
