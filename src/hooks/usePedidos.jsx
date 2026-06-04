@@ -71,13 +71,27 @@ export function usePedidos() {
   async function crearPedido(payload) {
     const config = await getConfiguracion()
     const totalBruto = Number(payload.monto_total || 0)
-    // Descuento de cupón de carrito (código canjeado)
-    const descuentoCupon = Number(payload.descuento_cupon || 0)
+    const descuentoCupon = payload.cuponId ? Number(payload.descuento_cupon || 0) : 0
     const totalFinal = Math.max(totalBruto - descuentoCupon, 0)
-
-    // El pedido genera cupón para próxima compra solo si califica y tiene cliente_id
     const generaCupon = Boolean(payload.cliente_id) && totalBruto >= config.monto_cupon_domicilio
 
+    // PASO 1: Reservar el cupón ANTES de crear el pedido (activo → en_uso)
+    // Si falla, no se crea nada — el cupón ya estaba siendo usado
+    if (payload.cuponId) {
+      const { data: reservado, error: reservaError } = await supabase
+        .from('cupones')
+        .update({ estado: 'en_uso' })
+        .eq('id', payload.cuponId)
+        .eq('estado', 'activo') // solo si aún está disponible
+        .select('id')
+
+      if (reservaError) throw new Error('Error al reservar el cupón.')
+      if (!reservado || reservado.length === 0) {
+        throw new Error('Este cupón ya no está disponible. Por favor quítalo y vuelve a intentarlo.')
+      }
+    }
+
+    // PASO 2: Crear el pedido
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
       .insert({
@@ -91,12 +105,20 @@ export function usePedidos() {
         estado: 'pendiente',
         genera_cupon: generaCupon,
         telefono_contacto: payload.telefono_contacto || null,
+        cupon_canjeado_id: payload.cuponId || null,
       })
       .select()
       .single()
 
-    if (pedidoError) throw pedidoError
+    if (pedidoError) {
+      // Si falla el pedido, liberar el cupón reservado
+      if (payload.cuponId) {
+        await supabase.from('cupones').update({ estado: 'activo' }).eq('id', payload.cuponId)
+      }
+      throw pedidoError
+    }
 
+    // PASO 3: Insertar el detalle del pedido
     const detalle = payload.items.map((item) => ({
       pedido_id: pedido.id,
       producto_id: item.producto_id,
@@ -108,15 +130,6 @@ export function usePedidos() {
 
     const { error: detalleError } = await supabase.from('detalle_pedidos').insert(detalle)
     if (detalleError) throw detalleError
-
-    // Si se usó un cupón del carrito, marcarlo como canjeado
-    if (payload.cuponId) {
-      await supabase
-        .from('cupones')
-        .update({ estado: 'canjeado', fecha_canje: new Date().toISOString() })
-        .eq('id', payload.cuponId)
-        .eq('estado', 'activo') // doble verificación: solo si aún está activo
-    }
 
     return { pedido, generaCupon }
   }

@@ -15,7 +15,6 @@ export default function Carrito() {
 
   const [threshold, setThreshold] = useState(150)
   const [couponValue, setCouponValue] = useState(10)
-
   const [codigoInput, setCodigoInput] = useState('')
   const [cuponLoading, setCuponLoading] = useState(false)
   const [cuponError, setCuponError] = useState('')
@@ -32,7 +31,7 @@ export default function Carrito() {
       })
   }, [])
 
-  const progress = Math.min((totalMonto / threshold) * 100, 100)
+  const progress  = Math.min((totalMonto / threshold) * 100, 100)
   const remaining = Math.max(threshold - totalMonto, 0)
   const qualifies = totalMonto >= threshold
 
@@ -51,14 +50,25 @@ export default function Carrito() {
 
     setCuponLoading(false)
 
-    if (error) { setCuponError('Error al verificar el cupón.'); return }
-    if (!data) { setCuponError('Código no válido. Verifica que esté bien escrito.'); return }
-    if (data.estado === 'canjeado') { setCuponError('Este código ya fue utilizado y no puede volver a usarse.'); return }
+    if (error)  { setCuponError('Error al verificar el cupón.'); return }
+    if (!data)  { setCuponError('Código no válido. Verifica que esté bien escrito.'); return }
+
+    if (data.estado === 'canjeado') {
+      setCuponError('Este código ya fue utilizado y no puede volver a usarse.')
+      return
+    }
+    if (data.estado === 'en_uso') {
+      setCuponError('Este cupón ya está reservado en otro pedido activo. Si ese pedido fue cancelado, el cupón volverá a estar disponible en unos minutos.')
+      return
+    }
     if (data.estado === 'vencido' || new Date(data.fecha_vencimiento) < new Date()) {
       setCuponError('Este cupón ha vencido.')
       return
     }
-    if (data.estado !== 'activo') { setCuponError('Este cupón no está disponible.'); return }
+    if (data.estado !== 'activo') {
+      setCuponError('Este cupón no está disponible.')
+      return
+    }
 
     aplicarCupon({ id: data.id, codigo: data.codigo, valor: Number(data.valor) })
     setCodigoInput('')
@@ -82,9 +92,9 @@ export default function Carrito() {
           {/* Barra de progreso hacia cupón */}
           <div className="card" style={{ padding: '12px 14px' }}>
             {qualifies ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mall-dark)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Ticket size={16} style={{ color: 'var(--mall-accent)' }} />
-                <strong style={{ fontSize: 13 }}>
+                <strong style={{ fontSize: 13, color: 'var(--mall-dark)' }}>
                   ¡Este pedido generará un cupón de {money(couponValue)} al ser entregado!
                 </strong>
               </div>
@@ -128,12 +138,15 @@ export default function Carrito() {
             ))}
           </section>
 
-          {/* Sección de cupón de descuento */}
+          {/* Sección de cupón — solo 1 permitido */}
           <section className="card grid" style={{ gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Tag size={17} style={{ color: 'var(--mall-accent)' }} />
               <strong style={{ fontSize: 15 }}>¿Tienes un cupón de descuento?</strong>
             </div>
+            <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+              Solo se puede aplicar un cupón por pedido. Cada cupón solo puede usarse una vez.
+            </p>
 
             {cuponAplicado ? (
               <div style={{
@@ -149,7 +162,7 @@ export default function Carrito() {
                     Descuento: −{money(cuponAplicado.valor)}
                   </div>
                 </div>
-                <button type="button" onClick={quitarCupon} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4 }}>
+                <button type="button" onClick={quitarCupon} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4 }} title="Quitar cupón">
                   <X size={18} />
                 </button>
               </div>
@@ -157,7 +170,7 @@ export default function Carrito() {
               <form onSubmit={validarCupon} style={{ display: 'flex', gap: 8 }}>
                 <input
                   className="input-field"
-                  placeholder="Ingresa tu código (ej: MALL-ABC123)"
+                  placeholder="Código del cupón (ej: MALL-ABC123)"
                   value={codigoInput}
                   onChange={(e) => { setCodigoInput(e.target.value.toUpperCase()); setCuponError('') }}
                   style={{ flex: 1, textTransform: 'uppercase', letterSpacing: 1 }}
@@ -168,12 +181,10 @@ export default function Carrito() {
               </form>
             )}
 
-            {cuponError ? (
-              <div className="error" style={{ margin: 0, fontSize: 13 }}>{cuponError}</div>
-            ) : null}
+            {cuponError ? <div className="error" style={{ margin: 0, fontSize: 13 }}>{cuponError}</div> : null}
           </section>
 
-          {/* Resumen y total */}
+          {/* Totales */}
           <section className="card grid">
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--mall-muted)' }}>
               <span>Subtotal</span>
