@@ -9,9 +9,7 @@ function parseSlots(value) {
     try {
       const parsed = JSON.parse(value)
       if (Array.isArray(parsed)) return parsed
-    } catch {
-      return DEFAULT_SLOTS
-    }
+    } catch { return DEFAULT_SLOTS }
   }
   return DEFAULT_SLOTS
 }
@@ -35,63 +33,59 @@ export function usePedidos() {
   async function slotsConDisponibilidad() {
     const config = await getConfiguracion()
     const hoy = new Date().toISOString().slice(0, 10)
-
     const { data: pedidosHoy, error } = await supabase
       .from('pedidos')
       .select('horario,hora_entrega_asignada')
       .gte('created_at', `${hoy}T00:00:00`)
       .lte('created_at', `${hoy}T23:59:59`)
-
     if (error) throw error
 
-    const counts = (pedidosHoy || []).reduce((acc, pedido) => {
-      const slot = String(pedido.hora_entrega_asignada || pedido.horario || '').slice(0, 5)
+    const counts = (pedidosHoy || []).reduce((acc, p) => {
+      const slot = String(p.hora_entrega_asignada || p.horario || '').slice(0, 5)
       if (slot) acc[slot] = (acc[slot] || 0) + 1
       return acc
     }, {})
 
-    const todosSlots = config.slots_entrega
-    const mananaSlots = todosSlots.filter((s) => Number(s.slice(0, 2)) < 15)
-    const tardeSlots  = todosSlots.filter((s) => Number(s.slice(0, 2)) >= 15)
-
+    const all = config.slots_entrega
     function buildJornada(nombre, rango, slots) {
-      const slotInfo = slots.map((hora) => {
+      const info = slots.map((hora) => {
         const max = Number(hora.slice(0, 2)) < 15 ? config.max_pedidos_manana : config.max_pedidos_tarde
         return { hora, disponible: (counts[hora] || 0) < max }
       })
-      return { nombre, rango, slots: slotInfo, disponibles: slotInfo.filter((s) => s.disponible).length }
+      return { nombre, rango, slots: info, disponibles: info.filter((s) => s.disponible).length }
     }
-
     return [
-      buildJornada('Mañana', '13:00 – 15:00', mananaSlots),
-      buildJornada('Tarde',  '17:00 – 19:00', tardeSlots),
+      buildJornada('Mañana', '13:00 – 15:00', all.filter((s) => Number(s.slice(0, 2)) < 15)),
+      buildJornada('Tarde',  '17:00 – 19:00', all.filter((s) => Number(s.slice(0, 2)) >= 15)),
     ]
   }
 
   async function crearPedido(payload) {
     const config = await getConfiguracion()
-    const totalBruto = Number(payload.monto_total || 0)
+    const totalBruto     = Number(payload.monto_total || 0)
     const descuentoCupon = payload.cuponId ? Number(payload.descuento_cupon || 0) : 0
-    const totalFinal = Math.max(totalBruto - descuentoCupon, 0)
-    const generaCupon = Boolean(payload.cliente_id) && totalBruto >= config.monto_cupon_domicilio
+    const totalFinal     = Math.max(totalBruto - descuentoCupon, 0)
+    const generaCupon    = Boolean(payload.cliente_id) && totalBruto >= config.monto_cupon_domicilio
 
-    // PASO 1: Reservar el cupón ANTES de crear el pedido (activo → en_uso)
-    // Si falla, no se crea nada — el cupón ya estaba siendo usado
+    // ── PASO 1: Marcar el cupón como canjeado ANTES de crear el pedido ──
+    // Si falla (cupón ya canjeado o no existe), se lanza error y no se crea nada.
     if (payload.cuponId) {
-      const { data: reservado, error: reservaError } = await supabase
+      const { data: resultado, error: cuponError } = await supabase
         .from('cupones')
-        .update({ estado: 'en_uso' })
+        .update({ estado: 'canjeado', fecha_canje: new Date().toISOString() })
         .eq('id', payload.cuponId)
-        .eq('estado', 'activo') // solo si aún está disponible
+        .eq('estado', 'activo')   // solo funciona si aún está activo
         .select('id')
 
-      if (reservaError) throw new Error('Error al reservar el cupón.')
-      if (!reservado || reservado.length === 0) {
-        throw new Error('Este cupón ya no está disponible. Por favor quítalo y vuelve a intentarlo.')
+      if (cuponError) {
+        throw new Error('Error al procesar el cupón. Intenta de nuevo.')
+      }
+      if (!resultado || resultado.length === 0) {
+        throw new Error('Este cupón ya fue utilizado o ya no está disponible. Por favor quítalo e intenta sin él.')
       }
     }
 
-    // PASO 2: Crear el pedido
+    // ── PASO 2: Crear el pedido ──
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
       .insert({
@@ -111,14 +105,17 @@ export function usePedidos() {
       .single()
 
     if (pedidoError) {
-      // Si falla el pedido, liberar el cupón reservado
+      // Si el pedido falla, intentar restaurar el cupón
       if (payload.cuponId) {
-        await supabase.from('cupones').update({ estado: 'activo' }).eq('id', payload.cuponId)
+        await supabase
+          .from('cupones')
+          .update({ estado: 'activo', fecha_canje: null })
+          .eq('id', payload.cuponId)
       }
       throw pedidoError
     }
 
-    // PASO 3: Insertar el detalle del pedido
+    // ── PASO 3: Insertar detalle del pedido ──
     const detalle = payload.items.map((item) => ({
       pedido_id: pedido.id,
       producto_id: item.producto_id,
@@ -127,7 +124,6 @@ export function usePedidos() {
       precio_unitario: item.precio,
       subtotal: Number(item.precio) * Number(item.cantidad),
     }))
-
     const { error: detalleError } = await supabase.from('detalle_pedidos').insert(detalle)
     if (detalleError) throw detalleError
 
