@@ -4,6 +4,8 @@ const CarritoContext = createContext(null)
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState([])
+  const [cuponAplicado, setCuponAplicado] = useState(null)
+  // cuponAplicado = { id, codigo, valor } | null
 
   function agregarItem(producto) {
     setItems((current) => {
@@ -26,20 +28,29 @@ export function CartProvider({ children }) {
   function cambiarCantidad(productoId, cantidad) {
     setItems((current) =>
       current
-        .map((item) =>
-          item.producto_id === productoId ? { ...item, cantidad } : item,
-        )
+        .map((item) => item.producto_id === productoId ? { ...item, cantidad } : item)
         .filter((item) => item.cantidad > 0),
     )
   }
 
   function limpiarCarrito() {
     setItems([])
+    setCuponAplicado(null)
+  }
+
+  function aplicarCupon(cupon) {
+    setCuponAplicado(cupon)
+  }
+
+  function quitarCupon() {
+    setCuponAplicado(null)
   }
 
   const value = useMemo(() => {
     const totalItems = items.reduce((sum, item) => sum + Number(item.cantidad || 0), 0)
     const totalMonto = items.reduce((sum, item) => sum + Number(item.precio || 0) * Number(item.cantidad || 0), 0)
+    const descuentoCupon = cuponAplicado ? Number(cuponAplicado.valor || 0) : 0
+    const totalConDescuento = Math.max(totalMonto - descuentoCupon, 0)
 
     return {
       items,
@@ -47,10 +58,14 @@ export function CartProvider({ children }) {
       quitarItem,
       cambiarCantidad,
       limpiarCarrito,
+      aplicarCupon,
+      quitarCupon,
+      cuponAplicado,
       totalItems,
       totalMonto,
+      totalConDescuento,
     }
-  }, [items])
+  }, [items, cuponAplicado])
 
   return <CarritoContext.Provider value={value}>{children}</CarritoContext.Provider>
 }

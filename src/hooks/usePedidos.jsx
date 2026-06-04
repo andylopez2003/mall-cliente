@@ -68,12 +68,15 @@ export function usePedidos() {
     ]
   }
 
-  // descuento_cupon: monto a descontar del total (0 si el cliente guarda el cupón)
   async function crearPedido(payload) {
     const config = await getConfiguracion()
     const totalBruto = Number(payload.monto_total || 0)
-    const descuento  = Number(payload.descuento_cupon || 0)
-    const totalFinal = Math.max(totalBruto - descuento, 0)
+    // Descuento de cupón de carrito (código canjeado)
+    const descuentoCupon = Number(payload.descuento_cupon || 0)
+    const totalFinal = Math.max(totalBruto - descuentoCupon, 0)
+
+    // El pedido genera cupón para próxima compra solo si califica y tiene cliente_id
+    const generaCupon = Boolean(payload.cliente_id) && totalBruto >= config.monto_cupon_domicilio
 
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
@@ -86,7 +89,7 @@ export function usePedidos() {
         hora_entrega_asignada: payload.hora_entrega_asignada,
         monto_total: totalFinal,
         estado: 'pendiente',
-        genera_cupon: false,
+        genera_cupon: generaCupon,
         telefono_contacto: payload.telefono_contacto || null,
       })
       .select()
@@ -106,23 +109,16 @@ export function usePedidos() {
     const { error: detalleError } = await supabase.from('detalle_pedidos').insert(detalle)
     if (detalleError) throw detalleError
 
-    // Si el cliente guarda el cupón, crearlo ahora
-    if (payload.guardarCupon && payload.cliente_id) {
-      const codigo = payload.codigoCupon
-      const dias   = config.dias_vencimiento_cupon
-      const vence  = new Date(Date.now() + dias * 24 * 60 * 60 * 1000).toISOString()
-      await supabase.from('cupones').insert({
-        codigo,
-        cliente_id: payload.cliente_id,
-        pedido_id: pedido.id,
-        valor: config.valor_cupon_domicilio,
-        estado: 'activo',
-        fecha_emision: new Date().toISOString(),
-        fecha_vencimiento: vence,
-      })
+    // Si se usó un cupón del carrito, marcarlo como canjeado
+    if (payload.cuponId) {
+      await supabase
+        .from('cupones')
+        .update({ estado: 'canjeado', fecha_canje: new Date().toISOString() })
+        .eq('id', payload.cuponId)
+        .eq('estado', 'activo') // doble verificación: solo si aún está activo
     }
 
-    return pedido
+    return { pedido, generaCupon }
   }
 
   return { slotsConDisponibilidad, crearPedido, getConfiguracion }

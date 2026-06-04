@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Gift, LocateFixed, Phone, ShieldCheck, Ticket } from 'lucide-react'
+import { ArrowLeft, LocateFixed, Phone, ShieldCheck, Ticket } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 import { useCatalogo } from '../hooks/useCatalogo.jsx'
 import { usePedidos } from '../hooks/usePedidos.jsx'
-import { couponCode, money } from '../utils/format.js'
+import { money } from '../utils/format.js'
 import { supabase } from '../supabase.js'
 
 function addTwenty(time) {
@@ -15,7 +15,7 @@ function addTwenty(time) {
 
 export default function HacerPedido() {
   const navigate = useNavigate()
-  const { items, totalMonto, limpiarCarrito, cambiarCantidad, quitarItem } = useCart()
+  const { items, totalMonto, totalConDescuento, cuponAplicado, limpiarCarrito, cambiarCantidad, quitarItem } = useCart()
   const { validateCart, loading: catalogoLoading } = useCatalogo()
   const { slotsConDisponibilidad, crearPedido, getConfiguracion } = usePedidos()
 
@@ -30,23 +30,15 @@ export default function HacerPedido() {
   const [jornadaSeleccionada, setJornadaSeleccionada] = useState(null)
   const [error, setError] = useState('')
   const [loadingSlots, setLoadingSlots] = useState(false)
-
   const [cuponThreshold, setCuponThreshold] = useState(150)
-  const [cuponValor, setCuponValor] = useState(10)
-  const [cuponEleccion, setCuponEleccion] = useState(null) // null | 'ahora' | 'guardar'
-  const [generatedCode] = useState(() => couponCode())
 
   useEffect(() => {
-    getConfiguracion().then((c) => {
-      setCuponThreshold(c.monto_cupon_domicilio)
-      setCuponValor(c.valor_cupon_domicilio)
-    }).catch(() => {})
+    getConfiguracion().then((c) => setCuponThreshold(c.monto_cupon_domicilio)).catch(() => {})
   }, [])
 
-  const qualifiesCoupon = totalMonto >= cuponThreshold && telefono.trim().length > 0
-  const totalFinal = qualifiesCoupon && cuponEleccion === 'ahora' ? totalMonto - cuponValor : totalMonto
-  const validItems = useMemo(() => (catalogoLoading ? items : validateCart(items)), [items, validateCart, catalogoLoading])
   const haySlots = jornadas.some((j) => j.disponibles > 0)
+  const validItems = useMemo(() => (catalogoLoading ? items : validateCart(items)), [items, validateCart, catalogoLoading])
+  const generaraCupon = totalMonto >= cuponThreshold && telefono.trim().length > 0
 
   if (items.length === 0) return <Navigate to="/" replace />
 
@@ -91,6 +83,19 @@ export default function HacerPedido() {
       const cleanItems = validItems
       if (cleanItems.length === 0) { setError('Tu carrito no tiene productos válidos.'); return }
 
+      // Verificar que el cupón del carrito aún esté activo antes de continuar
+      if (cuponAplicado) {
+        const { data: cuponCheck } = await supabase
+          .from('cupones')
+          .select('estado')
+          .eq('id', cuponAplicado.id)
+          .single()
+        if (!cuponCheck || cuponCheck.estado !== 'activo') {
+          setError('El cupón ya fue utilizado. Por favor quítalo y vuelve a intentarlo.')
+          return
+        }
+      }
+
       const { data: clienteExistente } = await supabase
         .from('usuarios').select('id').eq('telefono', telefono.trim()).maybeSingle()
 
@@ -105,18 +110,15 @@ export default function HacerPedido() {
         await supabase.from('puntos').insert({ cliente_id: clienteId, saldo: 0, total_ganado: 0, total_canjeado: 0 })
       }
 
-      const guardarCupon = qualifiesCoupon && cuponEleccion !== 'ahora'
-
-      const pedido = await crearPedido({
+      const { pedido, generaCupon } = await crearPedido({
         cliente_id: clienteId,
         direccion_entrega: direccion.trim(),
         horario: slot,
         hora_entrega_asignada: slot,
         monto_total: totalMonto,
-        descuento_cupon: qualifiesCoupon && cuponEleccion === 'ahora' ? cuponValor : 0,
+        descuento_cupon: cuponAplicado ? cuponAplicado.valor : 0,
+        cuponId: cuponAplicado?.id || null,
         telefono_contacto: telefono.trim(),
-        guardarCupon,
-        codigoCupon: guardarCupon ? generatedCode : null,
         items: cleanItems.map((item) => ({
           producto_id: item.producto_id,
           nombre_producto: item.nombre,
@@ -129,11 +131,10 @@ export default function HacerPedido() {
       navigate('/pedido/confirmacion', {
         state: {
           pedidoId: pedido.id,
-          total: totalFinal,
+          total: totalConDescuento,
           horario: slot,
-          telefono: telefono.trim(),
-          cuponAplicado: qualifiesCoupon && cuponEleccion === 'ahora' ? cuponValor : 0,
-          codigoCupon: guardarCupon ? generatedCode : null,
+          cuponAplicado: cuponAplicado ? cuponAplicado.valor : 0,
+          generaCupon,
         },
       })
     } catch (err) {
@@ -156,7 +157,7 @@ export default function HacerPedido() {
 
       {error ? <div className="error">{error}</div> : null}
 
-      {/* ── Paso 1 ── */}
+      {/* ── Paso 1: Carrito ── */}
       {step === 1 ? (
         <section className="card grid">
           <h2 className="font-display" style={{ margin: 0 }}>Revisar carrito</h2>
@@ -176,14 +177,20 @@ export default function HacerPedido() {
               </div>
             </div>
           ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
-            <span>Total</span><span className="price">{money(totalMonto)}</span>
+          {cuponAplicado ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--mall-main)', fontSize: 14, fontWeight: 700 }}>
+              <span>Cupón {cuponAplicado.codigo}</span>
+              <span>−{money(cuponAplicado.valor)}</span>
+            </div>
+          ) : null}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 17, borderTop: '1px solid var(--mall-line)', paddingTop: 10 }}>
+            <span>Total</span><span className="price">{money(totalConDescuento)}</span>
           </div>
           <button className="btn-primary" type="button" onClick={() => setStep(2)}>Continuar</button>
         </section>
       ) : null}
 
-      {/* ── Paso 2 ── */}
+      {/* ── Paso 2: Datos ── */}
       {step === 2 ? (
         <section className="card grid">
           <h2 className="font-display" style={{ margin: 0 }}>Tus datos</h2>
@@ -198,16 +205,13 @@ export default function HacerPedido() {
             </summary>
           </details>
           {usarDpi ? (
-            <div className="grid" style={{ gap: 8 }}>
-              <p className="muted" style={{ margin: 0, fontSize: 13 }}>Solo lo usamos para tu programa de cupones.</p>
-              <input className="input-field" placeholder="Número de DPI" value={dpi} onChange={(e) => setDpi(e.target.value)} />
-            </div>
+            <input className="input-field" placeholder="Número de DPI" value={dpi} onChange={(e) => setDpi(e.target.value)} />
           ) : null}
           <button className="btn-primary" type="button" onClick={nextStep}>Continuar</button>
         </section>
       ) : null}
 
-      {/* ── Paso 3 ── */}
+      {/* ── Paso 3: Horario ── */}
       {step === 3 ? (
         <section className="card grid">
           <h2 className="font-display" style={{ margin: 0 }}>Horario de entrega</h2>
@@ -218,8 +222,8 @@ export default function HacerPedido() {
               <div style={{ fontSize: 44 }}>😔</div>
               <strong style={{ fontSize: 16 }}>No hay turnos disponibles hoy</strong>
               <p className="muted" style={{ margin: 0, fontSize: 14 }}>Los turnos se recargarán mañana. Pedimos disculpas por la demora.</p>
-              <p className="muted" style={{ margin: 0, fontSize: 14 }}>Si de verdad necesitas tu pedido hoy mismo, contáctanos:</p>
-              <a href="tel:33921737" className="btn-accent" style={{ textDecoration: 'none', justifySelf: 'center', gap: 8 }}>
+              <p className="muted" style={{ margin: 0, fontSize: 14 }}>Si necesitas tu pedido hoy, contáctanos:</p>
+              <a href="tel:33921737" className="btn-accent" style={{ textDecoration: 'none', justifySelf: 'center' }}>
                 <Phone size={16} /> 33921737
               </a>
             </div>
@@ -251,7 +255,6 @@ export default function HacerPedido() {
                 <ArrowLeft size={14} /> Cambiar jornada
               </button>
               <div><strong>{jornadaSeleccionada.nombre}</strong><span className="muted" style={{ marginLeft: 6, fontSize: 13 }}>{jornadaSeleccionada.rango}</span></div>
-              <p className="muted" style={{ margin: 0, fontSize: 13 }}>Elige tu turno (cada uno dura 20 minutos):</p>
               <div className="slot-grid">
                 {jornadaSeleccionada.slots.map((s) => (
                   <button key={s.hora} type="button"
@@ -274,7 +277,7 @@ export default function HacerPedido() {
         </section>
       ) : null}
 
-      {/* ── Paso 4: Confirmar + cupón ── */}
+      {/* ── Paso 4: Confirmar ── */}
       {step === 4 ? (
         <section className="card grid">
           <h2 className="font-display" style={{ margin: 0 }}>Confirmar pedido</h2>
@@ -283,58 +286,22 @@ export default function HacerPedido() {
             <div><span className="muted">Teléfono: </span><strong>{telefono}</strong></div>
             <div><span className="muted">Dirección: </span><strong>{direccion}</strong></div>
             <div><span className="muted">Horario: </span><strong>{slot} – {addTwenty(slot)}</strong></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--mall-line)', fontWeight: 700 }}>
-              <span>Subtotal</span><span>{money(totalMonto)}</span>
-            </div>
-            {qualifiesCoupon && cuponEleccion === 'ahora' ? (
+            {cuponAplicado ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--mall-main)', fontWeight: 700 }}>
-                <span>Descuento cupón</span><span>−{money(cuponValor)}</span>
+                <span>Cupón {cuponAplicado.codigo}</span>
+                <span>−{money(cuponAplicado.valor)}</span>
               </div>
             ) : null}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 17 }}>
-              <span>Total a pagar</span><span className="price">{money(totalFinal)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 17, borderTop: '1px solid var(--mall-line)', paddingTop: 8 }}>
+              <span>Total a pagar</span><span className="price">{money(totalConDescuento)}</span>
             </div>
           </div>
-
-          {qualifiesCoupon ? (
-            <div style={{ background: 'linear-gradient(135deg, #fff8e7, #ffedb8)', border: '2px solid var(--mall-accent)', borderRadius: 12, padding: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <Gift size={20} style={{ color: 'var(--mall-accent)' }} />
-                <strong>¡Ganaste un cupón de {money(cuponValor)}!</strong>
-              </div>
-              <p className="muted" style={{ margin: '0 0 12px', fontSize: 13 }}>
-                Tu pedido supera {money(cuponThreshold)}. ¿Qué quieres hacer con tu cupón?
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <button
-                  type="button"
-                  className={cuponEleccion === 'ahora' ? 'btn-primary' : 'btn-outline'}
-                  onClick={() => setCuponEleccion('ahora')}
-                  style={{ fontSize: 13 }}
-                >
-                  <Ticket size={14} /> Usar ahora (−{money(cuponValor)})
-                </button>
-                <button
-                  type="button"
-                  className={cuponEleccion === 'guardar' ? 'btn-primary' : 'btn-outline'}
-                  onClick={() => setCuponEleccion('guardar')}
-                  style={{ fontSize: 13 }}
-                >
-                  Guardar código
-                </button>
-              </div>
-              {cuponEleccion === 'ahora' ? (
-                <div className="success" style={{ marginTop: 10, textAlign: 'center', fontSize: 13 }}>
-                  Se descontarán {money(cuponValor)} de tu pedido. Total final: <strong>{money(totalFinal)}</strong>
-                </div>
-              ) : cuponEleccion === 'guardar' ? (
-                <div className="success" style={{ marginTop: 10, textAlign: 'center', fontSize: 13 }}>
-                  Se generará un código único al confirmar. Lo verás en la pantalla siguiente y en "Mis Cupones".
-                </div>
-              ) : null}
+          {generaraCupon ? (
+            <div className="card" style={{ background: '#fff5d9', padding: 12, fontSize: 13 }}>
+              <Ticket size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
+              Este pedido generará un cupón de descuento cuando sea entregado.
             </div>
           ) : null}
-
           <button className="btn-accent" type="button" onClick={submit}>Confirmar pedido</button>
         </section>
       ) : null}

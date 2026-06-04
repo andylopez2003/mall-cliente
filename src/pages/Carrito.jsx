@@ -1,15 +1,24 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Minus, Plus, Ticket, Trash2 } from 'lucide-react'
+import { Minus, Plus, Tag, Ticket, Trash2, X } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 import { supabase } from '../supabase.js'
 import { money } from '../utils/format.js'
 
 export default function Carrito() {
   const navigate = useNavigate()
-  const { items, cambiarCantidad, quitarItem, totalMonto, totalItems } = useCart()
+  const {
+    items, cambiarCantidad, quitarItem,
+    totalMonto, totalItems, totalConDescuento,
+    cuponAplicado, aplicarCupon, quitarCupon,
+  } = useCart()
+
   const [threshold, setThreshold] = useState(150)
   const [couponValue, setCouponValue] = useState(10)
+
+  const [codigoInput, setCodigoInput] = useState('')
+  const [cuponLoading, setCuponLoading] = useState(false)
+  const [cuponError, setCuponError] = useState('')
 
   useEffect(() => {
     supabase
@@ -27,10 +36,41 @@ export default function Carrito() {
   const remaining = Math.max(threshold - totalMonto, 0)
   const qualifies = totalMonto >= threshold
 
+  async function validarCupon(e) {
+    e.preventDefault()
+    const codigo = codigoInput.trim().toUpperCase()
+    if (!codigo) return
+    setCuponError('')
+    setCuponLoading(true)
+
+    const { data, error } = await supabase
+      .from('cupones')
+      .select('id, codigo, valor, estado, fecha_vencimiento')
+      .eq('codigo', codigo)
+      .maybeSingle()
+
+    setCuponLoading(false)
+
+    if (error) { setCuponError('Error al verificar el cupón.'); return }
+    if (!data) { setCuponError('Código no válido. Verifica que esté bien escrito.'); return }
+    if (data.estado === 'canjeado') { setCuponError('Este código ya fue utilizado y no puede volver a usarse.'); return }
+    if (data.estado === 'vencido' || new Date(data.fecha_vencimiento) < new Date()) {
+      setCuponError('Este cupón ha vencido.')
+      return
+    }
+    if (data.estado !== 'activo') { setCuponError('Este cupón no está disponible.'); return }
+
+    aplicarCupon({ id: data.id, codigo: data.codigo, valor: Number(data.valor) })
+    setCodigoInput('')
+    setCuponError('')
+  }
+
   return (
     <div className="grid" style={{ gap: 16 }}>
       <h1 className="page-title">Carrito</h1>
-      <p className="page-subtitle" style={{ marginBottom: 0 }}>{totalItems} producto{totalItems !== 1 ? 's' : ''} en tu carrito</p>
+      <p className="page-subtitle" style={{ marginBottom: 0 }}>
+        {totalItems} producto{totalItems !== 1 ? 's' : ''} en tu carrito
+      </p>
 
       {items.length === 0 ? (
         <div className="card grid">
@@ -39,11 +79,14 @@ export default function Carrito() {
         </div>
       ) : (
         <>
+          {/* Barra de progreso hacia cupón */}
           <div className="card" style={{ padding: '12px 14px' }}>
             {qualifies ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--mall-dark)' }}>
                 <Ticket size={16} style={{ color: 'var(--mall-accent)' }} />
-                <strong style={{ fontSize: 13 }}>¡Ganaste un cupón de {money(couponValue)}! Lo podrás usar en este pedido o guardar para después.</strong>
+                <strong style={{ fontSize: 13 }}>
+                  ¡Este pedido generará un cupón de {money(couponValue)} al ser entregado!
+                </strong>
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -55,21 +98,14 @@ export default function Carrito() {
             )}
             <div style={{ marginTop: 8, height: 6, background: '#edf4f1', borderRadius: 999, overflow: 'hidden' }}>
               <div style={{
-                height: '100%',
-                width: `${progress}%`,
+                height: '100%', width: `${progress}%`,
                 background: qualifies ? 'var(--mall-accent)' : 'var(--mall-main)',
-                borderRadius: 999,
-                transition: 'width 0.4s ease',
+                borderRadius: 999, transition: 'width 0.4s ease',
               }} />
             </div>
-            {!qualifies ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--mall-muted)', marginTop: 4 }}>
-                <span>{money(totalMonto)}</span>
-                <span>{money(threshold)}</span>
-              </div>
-            ) : null}
           </div>
 
+          {/* Productos */}
           <section className="card">
             {items.map((item) => (
               <div className="cart-line" key={item.producto_id}>
@@ -92,10 +128,66 @@ export default function Carrito() {
             ))}
           </section>
 
+          {/* Sección de cupón de descuento */}
+          <section className="card grid" style={{ gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Tag size={17} style={{ color: 'var(--mall-accent)' }} />
+              <strong style={{ fontSize: 15 }}>¿Tienes un cupón de descuento?</strong>
+            </div>
+
+            {cuponAplicado ? (
+              <div style={{
+                background: '#dff7ed', border: '1.5px solid var(--mall-main)',
+                borderRadius: 10, padding: '12px 14px',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--mall-dark)' }}>
+                    Cupón aplicado: <code>{cuponAplicado.codigo}</code>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--mall-main)', fontWeight: 700, marginTop: 2 }}>
+                    Descuento: −{money(cuponAplicado.valor)}
+                  </div>
+                </div>
+                <button type="button" onClick={quitarCupon} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4 }}>
+                  <X size={18} />
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={validarCupon} style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="input-field"
+                  placeholder="Ingresa tu código (ej: MALL-ABC123)"
+                  value={codigoInput}
+                  onChange={(e) => { setCodigoInput(e.target.value.toUpperCase()); setCuponError('') }}
+                  style={{ flex: 1, textTransform: 'uppercase', letterSpacing: 1 }}
+                />
+                <button type="submit" className="btn-outline" disabled={cuponLoading || !codigoInput.trim()} style={{ flexShrink: 0, padding: '0 14px' }}>
+                  {cuponLoading ? '...' : 'Aplicar'}
+                </button>
+              </form>
+            )}
+
+            {cuponError ? (
+              <div className="error" style={{ margin: 0, fontSize: 13 }}>{cuponError}</div>
+            ) : null}
+          </section>
+
+          {/* Resumen y total */}
           <section className="card grid">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 700, fontSize: 17 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--mall-muted)' }}>
+              <span>Subtotal</span>
+              <span>{money(totalMonto)}</span>
+            </div>
+            {cuponAplicado ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--mall-main)', fontWeight: 700 }}>
+                <span>Cupón {cuponAplicado.codigo}</span>
+                <span>−{money(cuponAplicado.valor)}</span>
+              </div>
+            ) : null}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 18, borderTop: '1px solid var(--mall-line)', paddingTop: 10 }}>
               <span>Total</span>
-              <span className="price">{money(totalMonto)}</span>
+              <span className="price">{money(totalConDescuento)}</span>
             </div>
             <button className="btn-accent" type="button" onClick={() => navigate('/pedido')}>
               Continuar pedido
