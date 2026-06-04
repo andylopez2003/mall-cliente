@@ -1,11 +1,32 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 const CarritoContext = createContext(null)
 
+const STORAGE_KEY = 'mall_carrito_v1'
+
+function leerStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function guardarStorage(items) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
+  } catch {}
+}
+
 export function CartProvider({ children }) {
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState(leerStorage)
   const [cuponAplicado, setCuponAplicado] = useState(null)
-  // cuponAplicado = { id, codigo, valor } | null
+
+  // Guardar en localStorage cada vez que cambie el carrito
+  useEffect(() => {
+    guardarStorage(items)
+  }, [items])
 
   function agregarItem(producto) {
     setItems((current) => {
@@ -26,9 +47,11 @@ export function CartProvider({ children }) {
   }
 
   function cambiarCantidad(productoId, cantidad) {
+    const qty = Number(cantidad)
+    if (isNaN(qty)) return
     setItems((current) =>
       current
-        .map((item) => item.producto_id === productoId ? { ...item, cantidad } : item)
+        .map((item) => item.producto_id === productoId ? { ...item, cantidad: qty } : item)
         .filter((item) => item.cantidad > 0),
     )
   }
@@ -36,6 +59,7 @@ export function CartProvider({ children }) {
   function limpiarCarrito() {
     setItems([])
     setCuponAplicado(null)
+    guardarStorage([])
   }
 
   function aplicarCupon(cupon) {

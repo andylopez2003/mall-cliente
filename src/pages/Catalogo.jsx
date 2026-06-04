@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CheckCircle2, ChevronRight, Plus, Search, Ticket } from 'lucide-react'
+import { CheckCircle2, ChevronRight, MessageCircle, Phone, Plus, Search, Ticket } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 import { useCatalogo } from '../hooks/useCatalogo.jsx'
 import { money } from '../utils/format.js'
@@ -52,6 +52,31 @@ export default function Catalogo() {
           ) : (
             <span className="badge-green">Bienvenido</span>
           )}
+        </div>
+      </section>
+
+      {/* Contacto con la tienda */}
+      <section className="card" style={{ background: 'linear-gradient(135deg, #f0faf6, #e1f5ee)', border: '1.5px solid var(--mall-line)' }}>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: 'var(--mall-dark)' }}>
+          ¿Necesitas ayuda? Escríbenos o llámanos
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <a
+            href="https://wa.me/50233921737"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary"
+            style={{ flex: 1, justifyContent: 'center', textDecoration: 'none', fontSize: 13 }}
+          >
+            <MessageCircle size={15} /> WhatsApp
+          </a>
+          <a
+            href="tel:33921737"
+            className="btn-outline"
+            style={{ flex: 1, justifyContent: 'center', textDecoration: 'none', fontSize: 13 }}
+          >
+            <Phone size={15} /> Llamar
+          </a>
         </div>
       </section>
 

@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Package, ShoppingCart, Ticket } from 'lucide-react'
+import { Home, MessageCircle, Package, ShoppingCart, Ticket } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 
 const links = [
-  { to: '/',           label: 'Inicio',   icon: Home },
-  { to: '/mis-cupones', label: 'Cupones',  icon: Ticket },
-  { to: '/carrito',    label: 'Carrito',  icon: ShoppingCart },
-  { to: '/mi-pedido',  label: 'Mi Pedido', icon: Package },
+  { to: '/',            label: 'Inicio',    icon: Home },
+  { to: '/mis-cupones', label: 'Cupones',   icon: Ticket },
+  { to: '/carrito',     label: 'Carrito',   icon: ShoppingCart },
+  { to: '/mi-pedido',   label: 'Mi Pedido', icon: Package },
 ]
 
 export default function Navbar({ children }) {
@@ -22,9 +22,18 @@ export default function Navbar({ children }) {
             <strong style={{ fontSize: 17 }}>Cliente</strong>
           </div>
         </div>
-        {totalItems > 0 ? (
-          <span className="badge-yellow">🛒 {totalItems}</span>
-        ) : null}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {totalItems > 0 ? <span className="badge-yellow">🛒 {totalItems}</span> : null}
+          <a
+            href="https://wa.me/50233921737"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, background: '#25D366', borderRadius: 8, color: 'white', flexShrink: 0 }}
+            title="Escríbenos por WhatsApp"
+          >
+            <MessageCircle size={18} />
+          </a>
+        </div>
       </header>
 
       <main className="content">{children}</main>
