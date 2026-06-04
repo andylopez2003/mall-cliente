@@ -15,6 +15,7 @@ export default function Carrito() {
 
   const [threshold, setThreshold] = useState(150)
   const [couponValue, setCouponValue] = useState(10)
+  const [minAmount, setMinAmount] = useState(20)
   const [codigoInput, setCodigoInput] = useState('')
   const [cuponLoading, setCuponLoading] = useState(false)
   const [cuponError, setCuponError] = useState('')
@@ -23,17 +24,20 @@ export default function Carrito() {
     supabase
       .from('configuracion')
       .select('clave, valor')
-      .in('clave', ['monto_cupon_domicilio', 'valor_cupon_domicilio'])
+      .in('clave', ['monto_cupon_domicilio', 'valor_cupon_domicilio', 'monto_minimo_domicilio'])
       .then(({ data }) => {
         const config = Object.fromEntries((data || []).map((i) => [i.clave, i.valor]))
-        if (config.monto_cupon_domicilio) setThreshold(Number(config.monto_cupon_domicilio))
-        if (config.valor_cupon_domicilio) setCouponValue(Number(config.valor_cupon_domicilio))
+        if (config.monto_cupon_domicilio)    setThreshold(Number(config.monto_cupon_domicilio))
+        if (config.valor_cupon_domicilio)    setCouponValue(Number(config.valor_cupon_domicilio))
+        if (config.monto_minimo_domicilio)   setMinAmount(Number(config.monto_minimo_domicilio))
       })
   }, [])
 
-  const progress  = Math.min((totalMonto / threshold) * 100, 100)
-  const remaining = Math.max(threshold - totalMonto, 0)
-  const qualifies = totalMonto >= threshold
+  const progress      = Math.min((totalMonto / threshold) * 100, 100)
+  const remaining     = Math.max(threshold - totalMonto, 0)
+  const qualifies     = totalMonto >= threshold
+  const belowMinimum  = totalConDescuento < minAmount
+  const faltaMinimo   = Math.max(minAmount - totalConDescuento, 0)
 
   async function validarCupon(e) {
     e.preventDefault()
@@ -200,7 +204,19 @@ export default function Carrito() {
               <span>Total</span>
               <span className="price">{money(totalConDescuento)}</span>
             </div>
-            <button className="btn-accent" type="button" onClick={() => navigate('/pedido')}>
+
+            {belowMinimum ? (
+              <div style={{ background: '#ffe1e1', color: '#8b1f1f', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
+                <strong>Monto mínimo no alcanzado.</strong> El pedido mínimo es de <strong>{money(minAmount)}</strong>. Te faltan <strong>{money(faltaMinimo)}</strong> para continuar.
+              </div>
+            ) : null}
+
+            <button
+              className="btn-accent"
+              type="button"
+              onClick={() => navigate('/pedido')}
+              disabled={belowMinimum}
+            >
               Continuar pedido
             </button>
           </section>

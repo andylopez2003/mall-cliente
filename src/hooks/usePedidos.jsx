@@ -2,16 +2,33 @@ import { supabase } from '../supabase.js'
 
 const DEFAULT_SLOTS = ['13:00', '13:20', '13:40', '14:00', '14:20', '14:40', '17:00', '17:20', '17:40', '18:00', '18:20', '18:40']
 
+// Expande un rango "13:00-15:00" en slots individuales de 20 minutos
+function expandRange(range) {
+  const parts = range.split('-')
+  if (parts.length < 2) return [range]
+  const [sh, sm] = parts[0].split(':').map(Number)
+  const [eh, em] = parts[1].split(':').map(Number)
+  const startMin = sh * 60 + (sm || 0)
+  const endMin   = eh * 60 + (em || 0)
+  const slots = []
+  for (let t = startMin; t < endMin; t += 20) {
+    slots.push(`${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`)
+  }
+  return slots.length > 0 ? slots : [range]
+}
+
 function parseSlots(value) {
   if (!value) return DEFAULT_SLOTS
-  if (Array.isArray(value)) return value
+  let arr = value
   if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) return parsed
-    } catch { return DEFAULT_SLOTS }
+    try { arr = JSON.parse(value) } catch { return DEFAULT_SLOTS }
   }
-  return DEFAULT_SLOTS
+  if (!Array.isArray(arr) || arr.length === 0) return DEFAULT_SLOTS
+  // Si los slots están en formato rango ("13:00-15:00"), expándelos a slots de 20 min
+  const expanded = arr.flatMap((s) =>
+    typeof s === 'string' && s.includes('-') && s.length > 5 ? expandRange(s) : [s],
+  )
+  return expanded.length > 0 ? expanded : DEFAULT_SLOTS
 }
 
 export function usePedidos() {
