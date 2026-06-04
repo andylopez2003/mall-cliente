@@ -1,17 +1,24 @@
 import { useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { CheckCircle2, LocateFixed, ShieldCheck, Ticket } from 'lucide-react'
+import { ArrowLeft, LocateFixed, Phone, ShieldCheck, Ticket } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 import { useCatalogo } from '../hooks/useCatalogo.jsx'
 import { usePedidos } from '../hooks/usePedidos.jsx'
 import { money } from '../utils/format.js'
 import { supabase } from '../supabase.js'
 
+function addTwenty(time) {
+  const [h, m] = time.split(':').map(Number)
+  const total = h * 60 + m + 20
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
 export default function HacerPedido() {
   const navigate = useNavigate()
   const { items, totalMonto, limpiarCarrito, cambiarCantidad, quitarItem } = useCart()
   const { validateCart, loading: catalogoLoading } = useCatalogo()
-  const { slotsDisponibles, crearPedido } = usePedidos()
+  const { slotsConDisponibilidad, crearPedido } = usePedidos()
+
   const [step, setStep] = useState(1)
   const [nombre, setNombre] = useState('')
   const [telefono, setTelefono] = useState('')
@@ -19,22 +26,24 @@ export default function HacerPedido() {
   const [usarDpi, setUsarDpi] = useState(false)
   const [dpi, setDpi] = useState('')
   const [slot, setSlot] = useState('')
-  const [availableSlots, setAvailableSlots] = useState([])
+  const [jornadas, setJornadas] = useState([])
+  const [jornadaSeleccionada, setJornadaSeleccionada] = useState(null)
   const [error, setError] = useState('')
   const [loadingSlots, setLoadingSlots] = useState(false)
-  const [message, setMessage] = useState('')
 
   const qualifiesCoupon = totalMonto >= 150 && telefono.trim().length > 0
   const validItems = useMemo(() => (catalogoLoading ? items : validateCart(items)), [items, validateCart, catalogoLoading])
+  const haySlots = jornadas.some((j) => j.disponibles > 0)
 
   if (items.length === 0) return <Navigate to="/" replace />
 
   async function refreshSlots() {
     setLoadingSlots(true)
     try {
-      const slots = await slotsDisponibles()
-      setAvailableSlots(slots)
-      setSlot((current) => current || slots[0] || '')
+      const data = await slotsConDisponibilidad()
+      setJornadas(data)
+      setJornadaSeleccionada(null)
+      setSlot('')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -43,37 +52,39 @@ export default function HacerPedido() {
   }
 
   async function useGPS() {
-    if (!navigator.geolocation) {
-      setError('Tu dispositivo no permite usar GPS.')
-      return
-    }
-
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords
-      setDireccion(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`)
-    }, () => setError('No se pudo obtener tu ubicacion.'))
+    if (!navigator.geolocation) { setError('Tu dispositivo no permite usar GPS.'); return }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => setDireccion(`${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`),
+      () => setError('No se pudo obtener tu ubicación.'),
+    )
   }
 
   async function nextStep() {
     setError('')
     if (step === 2) {
       if (!nombre.trim() || !telefono.trim() || !direccion.trim()) {
-        setError('Completa nombre, telefono y direccion.')
+        setError('Completa nombre, teléfono y dirección.')
         return
       }
       await refreshSlots()
     }
+    if (step === 3 && !slot) {
+      setError('Elige un turno de entrega.')
+      return
+    }
     setStep((current) => Math.min(4, current + 1))
+  }
+
+  function elegirJornada(jornada) {
+    setJornadaSeleccionada(jornada)
+    setSlot('')
   }
 
   async function submit() {
     setError('')
     try {
       const cleanItems = validItems
-      if (cleanItems.length === 0) {
-        setError('Tu carrito no tiene productos validos.')
-        return
-      }
+      if (cleanItems.length === 0) { setError('Tu carrito no tiene productos válidos.'); return }
 
       const { data: clienteExistente } = await supabase
         .from('usuarios')
@@ -82,24 +93,14 @@ export default function HacerPedido() {
         .maybeSingle()
 
       let clienteId = clienteExistente?.id || null
-      if (telefono.trim()) {
-        if (!clienteId) {
-          const { data: creado, error } = await supabase
-            .from('usuarios')
-            .insert({
-              nombre: nombre.trim(),
-              telefono: telefono.trim(),
-              dpi: usarDpi && dpi.trim() ? dpi.trim() : null,
-              rol: 'cliente',
-              qr_code: null,
-              onboarding_completo: true,
-            })
-            .select('id')
-            .single()
-          if (error) throw error
-          clienteId = creado.id
-          await supabase.from('puntos').insert({ cliente_id: clienteId, saldo: 0, total_ganado: 0, total_canjeado: 0 })
-        }
+      if (telefono.trim() && !clienteId) {
+        const { data: creado, error: cErr } = await supabase
+          .from('usuarios')
+          .insert({ nombre: nombre.trim(), telefono: telefono.trim(), dpi: usarDpi && dpi.trim() ? dpi.trim() : null, rol: 'cliente', onboarding_completo: true })
+          .select('id').single()
+        if (cErr) throw cErr
+        clienteId = creado.id
+        await supabase.from('puntos').insert({ cliente_id: clienteId, saldo: 0, total_ganado: 0, total_canjeado: 0 })
       }
 
       const pedido = await crearPedido({
@@ -119,13 +120,7 @@ export default function HacerPedido() {
 
       limpiarCarrito()
       navigate('/pedido/confirmacion', {
-        state: {
-          pedidoId: pedido.id,
-          total: totalMonto,
-          horario: slot,
-          telefono: telefono.trim(),
-          cupon: qualifiesCoupon,
-        },
+        state: { pedidoId: pedido.id, total: totalMonto, horario: slot, telefono: telefono.trim(), cupon: qualifiesCoupon },
       })
     } catch (err) {
       setError(err.message)
@@ -135,89 +130,192 @@ export default function HacerPedido() {
   return (
     <div className="grid" style={{ gap: 16 }}>
       <h1 className="page-title">Hacer pedido</h1>
-      <div className="card" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        {[1, 2, 3, 4].map((number) => (
-          <button key={number} type="button" className={step === number ? 'btn-primary' : 'btn-outline'} onClick={() => setStep(number)}>
-            Paso {number}
+
+      <div className="card" style={{ display: 'flex', gap: 6, padding: 10 }}>
+        {[1, 2, 3, 4].map((n) => (
+          <button
+            key={n} type="button"
+            className={step === n ? 'btn-primary' : 'btn-outline'}
+            onClick={() => setStep(n)}
+            style={{ flex: 1, padding: '8px 4px', minHeight: 38, fontSize: 13 }}
+          >
+            Paso {n}
           </button>
         ))}
       </div>
 
       {error ? <div className="error">{error}</div> : null}
-      {message ? <div className="success">{message}</div> : null}
 
+      {/* ── Paso 1: Revisar carrito ── */}
       {step === 1 ? (
         <section className="card grid">
-          <h2 className="font-display">Revisar carrito</h2>
-          {catalogoLoading ? <div className="muted">Validando productos...</div> : null}
+          <h2 className="font-display" style={{ margin: 0 }}>Revisar carrito</h2>
+          {catalogoLoading ? <div className="muted" style={{ fontSize: 13 }}>Validando productos...</div> : null}
           {validItems.map((item) => (
             <div key={item.producto_id} className="cart-line">
               <div>
-                <strong>{item.nombre}</strong>
-                <div className="muted">{money(item.precio)} c/u</div>
-                <div>{money(Number(item.precio) * item.cantidad)}</div>
+                <strong style={{ fontSize: 14 }}>{item.nombre}</strong>
+                <div className="muted" style={{ fontSize: 13 }}>{money(item.precio)} c/u</div>
+                <div style={{ fontWeight: 700 }}>{money(Number(item.precio) * item.cantidad)}</div>
               </div>
               <div className="stepper">
-                <button type="button" onClick={() => cambiarCantidad(item.producto_id, item.cantidad - 1)}>-</button>
+                <button type="button" onClick={() => cambiarCantidad(item.producto_id, item.cantidad - 1)}>−</button>
                 <strong>{item.cantidad}</strong>
                 <button type="button" onClick={() => cambiarCantidad(item.producto_id, item.cantidad + 1)}>+</button>
-                <button type="button" className="btn-danger" onClick={() => quitarItem(item.producto_id)}>Quitar</button>
+                <button type="button" className="btn-danger" style={{ padding: '6px 10px', minHeight: 36, fontSize: 12 }} onClick={() => quitarItem(item.producto_id)}>Quitar</button>
               </div>
             </div>
           ))}
-          {totalMonto >= 150 ? <div className="card" style={{ background: '#fff5d9' }}><Ticket size={18} /> Calificas para un cupon de Q10.</div> : null}
-          <div className="toolbar" style={{ justifyContent: 'space-between', margin: 0 }}>
-            <strong>Total</strong>
-            <strong className="price">{money(totalMonto)}</strong>
+          {totalMonto >= 150 ? (
+            <div className="card" style={{ background: '#fff5d9', padding: 12 }}>
+              <Ticket size={15} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
+              Calificas para un cupón de Q10.
+            </div>
+          ) : null}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 16 }}>
+            <span>Total</span>
+            <span className="price">{money(totalMonto)}</span>
           </div>
           <button className="btn-primary" type="button" onClick={() => setStep(2)}>Continuar</button>
         </section>
       ) : null}
 
+      {/* ── Paso 2: Tus datos ── */}
       {step === 2 ? (
         <section className="card grid">
-          <h2 className="font-display">Tus datos</h2>
+          <h2 className="font-display" style={{ margin: 0 }}>Tus datos</h2>
           <input className="input-field" placeholder="Nombre completo" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          <input className="input-field" placeholder="Telefono" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-          <input className="input-field" placeholder="Direccion de entrega" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
-          <button className="btn-outline" type="button" onClick={useGPS}><LocateFixed size={16} /> Usar GPS</button>
-          <details className="card" open={usarDpi}>
-            <summary style={{ cursor: 'pointer', fontWeight: 800, color: 'var(--mall-dark)' }}>
-              <ShieldCheck size={16} style={{ verticalAlign: 'text-bottom' }} /> Agrega tu DPI para cupones
+          <input className="input-field" placeholder="Teléfono" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+          <input className="input-field" placeholder="Dirección de entrega" value={direccion} onChange={(e) => setDireccion(e.target.value)} />
+          <button className="btn-outline" type="button" onClick={useGPS}>
+            <LocateFixed size={15} /> Usar mi ubicación GPS
+          </button>
+          <details style={{ cursor: 'pointer' }} open={usarDpi} onClick={(e) => { e.preventDefault(); setUsarDpi(!usarDpi) }}>
+            <summary style={{ fontWeight: 700, color: 'var(--mall-dark)', userSelect: 'none' }}>
+              <ShieldCheck size={15} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
+              Agregar DPI (opcional, para cupones)
             </summary>
-            <p className="muted">Opcional. Solo lo usamos para tu programa de cupones y para facilitar futuras compras.</p>
-            <input className="input-field" placeholder="DPI opcional" value={dpi} onChange={(e) => setDpi(e.target.value)} />
           </details>
-          {qualifiesCoupon ? <div className="card" style={{ background: '#fff5d9' }}>Vas bien para un cupon de regalo de Q10.</div> : null}
+          {usarDpi ? (
+            <div className="grid" style={{ gap: 8 }}>
+              <p className="muted" style={{ margin: 0, fontSize: 13 }}>Solo lo usamos para tu programa de cupones y facilitar futuras compras.</p>
+              <input className="input-field" placeholder="Número de DPI" value={dpi} onChange={(e) => setDpi(e.target.value)} />
+            </div>
+          ) : null}
+          {qualifiesCoupon ? (
+            <div className="card" style={{ background: '#fff5d9', padding: 12, fontSize: 13 }}>
+              Vas bien para un cupón de regalo de Q10.
+            </div>
+          ) : null}
           <button className="btn-primary" type="button" onClick={nextStep}>Continuar</button>
         </section>
       ) : null}
 
+      {/* ── Paso 3: Horario ── */}
       {step === 3 ? (
         <section className="card grid">
-          <h2 className="font-display">Horario de entrega</h2>
-          {loadingSlots ? <div className="muted">Buscando horarios disponibles...</div> : null}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {availableSlots.map((item) => (
-              <button key={item} type="button" className={slot === item ? 'btn-primary' : 'btn-outline'} onClick={() => setSlot(item)}>
-                {item}
+          <h2 className="font-display" style={{ margin: 0 }}>Horario de entrega</h2>
+
+          {loadingSlots ? <div className="muted" style={{ fontSize: 13 }}>Consultando disponibilidad...</div> : null}
+
+          {!loadingSlots && jornadas.length > 0 && !haySlots ? (
+            <div className="sin-slots-card">
+              <div style={{ fontSize: 44 }}>😔</div>
+              <strong style={{ fontSize: 16 }}>No hay turnos disponibles hoy</strong>
+              <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+                Los turnos se recargarán mañana. Pedimos disculpas por la demora.
+              </p>
+              <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+                Si de verdad necesitas tu pedido hoy mismo, contáctanos directamente:
+              </p>
+              <a href="tel:33921737" className="btn-accent" style={{ textDecoration: 'none', justifySelf: 'center', gap: 8 }}>
+                <Phone size={16} /> 33921737
+              </a>
+            </div>
+          ) : null}
+
+          {!loadingSlots && haySlots && !jornadaSeleccionada ? (
+            <div className="grid" style={{ gap: 10 }}>
+              <p className="muted" style={{ margin: 0, fontSize: 13 }}>Elige la jornada en que quieres recibir tu pedido:</p>
+              <div className="jornada-grid">
+                {jornadas.map((j) => (
+                  <button
+                    key={j.nombre} type="button"
+                    className="jornada-card"
+                    disabled={j.disponibles === 0}
+                    onClick={() => elegirJornada(j)}
+                  >
+                    <span className="jornada-icono">{j.nombre === 'Mañana' ? '🌤️' : '🌙'}</span>
+                    <strong>{j.nombre}</strong>
+                    <span className="jornada-rango">{j.rango}</span>
+                    <span className={j.disponibles > 0 ? 'badge-green' : 'badge-red'}>
+                      {j.disponibles > 0 ? `${j.disponibles} turnos libres` : 'Sin turnos'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {!loadingSlots && jornadaSeleccionada ? (
+            <div className="grid" style={{ gap: 12 }}>
+              <button className="btn-outline" type="button" onClick={() => { setJornadaSeleccionada(null); setSlot('') }} style={{ width: 'fit-content', fontSize: 13 }}>
+                <ArrowLeft size={14} /> Cambiar jornada
               </button>
-            ))}
-          </div>
-          {availableSlots.length === 0 ? <div className="muted">No hay slots disponibles por ahora.</div> : null}
-          <button className="btn-primary" type="button" onClick={nextStep} disabled={availableSlots.length === 0}>Continuar</button>
+              <div>
+                <strong>{jornadaSeleccionada.nombre}</strong>
+                <span className="muted" style={{ marginLeft: 6, fontSize: 13 }}>{jornadaSeleccionada.rango}</span>
+              </div>
+              <p className="muted" style={{ margin: 0, fontSize: 13 }}>Elige tu turno (cada uno dura 20 minutos):</p>
+              <div className="slot-grid">
+                {jornadaSeleccionada.slots.map((s) => (
+                  <button
+                    key={s.hora} type="button"
+                    className={`slot-btn${slot === s.hora ? ' slot-btn-selected' : ''}`}
+                    disabled={!s.disponible}
+                    onClick={() => setSlot(s.hora)}
+                  >
+                    <span className="slot-hora">{s.hora}</span>
+                    <span className="slot-label">
+                      {!s.disponible ? 'Lleno' : slot === s.hora ? '✓ Elegido' : 'Disponible'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {slot ? (
+                <div className="success" style={{ textAlign: 'center' }}>
+                  Tu pedido llegará entre las <strong>{slot}</strong> y las <strong>{addTwenty(slot)}</strong>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <button className="btn-primary" type="button" onClick={nextStep} disabled={!slot || loadingSlots}>
+            Continuar
+          </button>
         </section>
       ) : null}
 
+      {/* ── Paso 4: Confirmar ── */}
       {step === 4 ? (
         <section className="card grid">
-          <h2 className="font-display">Confirmar</h2>
-          <div className="muted">Nombre: {nombre}</div>
-          <div className="muted">Telefono: {telefono}</div>
-          <div className="muted">Direccion: {direccion}</div>
-          <div className="muted">Horario: {slot}</div>
-          <div className="muted">Total: {money(totalMonto)}</div>
-          {qualifiesCoupon ? <div className="card" style={{ background: '#fff5d9' }}>Este pedido marcara cupon para canje fisico en tienda.</div> : null}
+          <h2 className="font-display" style={{ margin: 0 }}>Confirmar pedido</h2>
+          <div className="grid" style={{ gap: 8, fontSize: 14 }}>
+            <div><span className="muted">Nombre: </span><strong>{nombre}</strong></div>
+            <div><span className="muted">Teléfono: </span><strong>{telefono}</strong></div>
+            <div><span className="muted">Dirección: </span><strong>{direccion}</strong></div>
+            <div><span className="muted">Horario: </span><strong>{slot} – {addTwenty(slot)}</strong></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--mall-line)', fontWeight: 700 }}>
+              <span>Total</span>
+              <span className="price">{money(totalMonto)}</span>
+            </div>
+          </div>
+          {qualifiesCoupon ? (
+            <div className="card" style={{ background: '#fff5d9', padding: 12, fontSize: 13 }}>
+              <Ticket size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
+              Este pedido generará un cupón de Q10 cuando sea entregado.
+            </div>
+          ) : null}
           <button className="btn-accent" type="button" onClick={submit}>Confirmar pedido</button>
         </section>
       ) : null}

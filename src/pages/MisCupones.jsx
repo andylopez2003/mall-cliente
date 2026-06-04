@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import { Search, Ticket } from 'lucide-react'
 import { supabase } from '../supabase.js'
-import { addDays, money } from '../utils/format.js'
+import { money } from '../utils/format.js'
 
 export default function MisCupones() {
   const [telefono, setTelefono] = useState('')
@@ -12,6 +13,7 @@ export default function MisCupones() {
 
   async function buscar(event) {
     event.preventDefault()
+    if (!telefono.trim()) return
     setLoading(true)
     setError('')
 
@@ -21,16 +23,12 @@ export default function MisCupones() {
       .eq('telefono', telefono.trim())
       .maybeSingle()
 
-    if (clienteError) {
-      setError(clienteError.message)
-      setLoading(false)
-      return
-    }
+    if (clienteError) { setError(clienteError.message); setLoading(false); return }
 
     if (!clienteData) {
       setCliente(null)
       setCupones([])
-      setError('No encontramos un cliente con ese telefono.')
+      setError('No encontramos un cliente con ese teléfono.')
       setLoading(false)
       return
     }
@@ -47,64 +45,117 @@ export default function MisCupones() {
     setLoading(false)
   }
 
-  const grouped = useMemo(() => {
-    return {
-      activos: cupones.filter((cupon) => cupon.estado === 'activo' && new Date(cupon.fecha_vencimiento) >= new Date()),
-      canjeados: cupones.filter((cupon) => cupon.estado === 'canjeado'),
-      vencidos: cupones.filter((cupon) => cupon.estado === 'vencido' || new Date(cupon.fecha_vencimiento) < new Date()),
-    }
-  }, [cupones])
+  const grouped = useMemo(() => ({
+    activos: cupones.filter((c) => c.estado === 'activo' && new Date(c.fecha_vencimiento) >= new Date()),
+    canjeados: cupones.filter((c) => c.estado === 'canjeado'),
+    vencidos: cupones.filter((c) => c.estado === 'vencido' || new Date(c.fecha_vencimiento) < new Date()),
+  }), [cupones])
 
   return (
     <div className="grid" style={{ gap: 16 }}>
-      <h1 className="page-title">Mis cupones</h1>
-      <form className="card grid" onSubmit={buscar}>
-        <input className="input-field" placeholder="Ingresa tu telefono" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
-        <button className="btn-primary" type="submit">Buscar</button>
+      <section className="coupon-hero">
+        <div className="coupon-hero-icon">
+          <Ticket size={28} />
+        </div>
+        <div>
+          <h1 className="page-title" style={{ margin: 0, color: 'white', fontSize: 26 }}>Mis Cupones</h1>
+          <p style={{ margin: '4px 0 0', color: 'rgba(255,255,255,.82)', fontSize: 13 }}>
+            Descuentos que puedes canjear en tienda física
+          </p>
+        </div>
+      </section>
+
+      <div className="card" style={{ background: '#fffdf0', border: '1px solid #f5e08a', padding: 14 }}>
+        <strong style={{ fontSize: 13 }}>¿Cómo funciona?</strong>
+        <p className="muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
+          Al hacer un pedido de <strong>Q150 o más</strong>, ganas un cupón de <strong>Q10</strong>. Muestra el código QR en tienda y te lo descontamos del total.
+        </p>
+      </div>
+
+      <form className="card" style={{ display: 'flex', gap: 8, padding: 12 }} onSubmit={buscar}>
+        <input
+          className="input-field"
+          placeholder="Tu número de teléfono"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <button className="btn-primary" type="submit" style={{ flexShrink: 0, padding: '0 16px' }}>
+          <Search size={17} />
+        </button>
       </form>
 
-      {loading ? <div className="card">Buscando cupones...</div> : null}
+      {loading ? <div className="card muted" style={{ textAlign: 'center', padding: 20 }}>Buscando tus cupones...</div> : null}
       {error ? <div className="error">{error}</div> : null}
 
       {cliente ? (
-        <section className="card grid">
-          <strong>{cliente.nombre}</strong>
-          <div className="grid" style={{ gap: 10 }}>
-            <h2 className="font-display" style={{ margin: 0 }}>Cupones activos</h2>
-            {grouped.activos.length === 0 ? <div className="muted">Aun no tienes cupones activos.</div> : null}
-            {grouped.activos.map((cupon) => (
-              <article key={cupon.id} className="card coupon-card" style={{ background: '#f6fff9' }}>
-                <div className="qr-box">
-                  <QRCodeSVG value={cupon.codigo} size={180} />
-                  <code style={{ fontSize: 18, letterSpacing: 1 }}>{cupon.codigo}</code>
-                  <div className="price">{money(cupon.valor)}</div>
-                  <div className="muted">Vence el {new Date(cupon.fecha_vencimiento).toLocaleDateString()}</div>
-                  <div className="badge-green">Muestra este QR en tienda para canjear</div>
+        <div className="grid" style={{ gap: 14 }}>
+          <div className="card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <strong>{cliente.nombre}</strong>
+            <span className="badge-green">{cupones.length} cupón{cupones.length !== 1 ? 'es' : ''}</span>
+          </div>
+
+          {grouped.activos.length > 0 ? (
+            <div className="grid" style={{ gap: 10 }}>
+              <h2 className="font-display" style={{ margin: 0, fontSize: 18 }}>Activos — listos para canjear</h2>
+              {grouped.activos.map((cupon) => (
+                <article key={cupon.id} className="coupon-card-active">
+                  <div className="coupon-card-header">
+                    <Ticket size={17} />
+                    <strong style={{ flex: 1 }}>Cupón de descuento</strong>
+                    <span className="badge-green">Activo</span>
+                  </div>
+                  <div className="coupon-qr-section">
+                    <QRCodeSVG value={cupon.codigo} size={190} />
+                    <code className="coupon-code">{cupon.codigo}</code>
+                    <div className="coupon-value">{money(cupon.valor)}</div>
+                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                      Vence el {new Date(cupon.fecha_vencimiento).toLocaleDateString('es-GT')}
+                    </p>
+                  </div>
+                  <div className="coupon-footer">
+                    <Ticket size={14} /> Muestra este QR en tienda para canjear tu descuento
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="card" style={{ textAlign: 'center', padding: '28px 16px' }}>
+              <div style={{ fontSize: 44, marginBottom: 10 }}>🎟️</div>
+              <strong>No tienes cupones activos</strong>
+              <p className="muted" style={{ margin: '6px 0 0', fontSize: 13 }}>
+                Haz un pedido de Q150 o más para ganar tu próximo cupón de Q10.
+              </p>
+            </div>
+          )}
+
+          {grouped.canjeados.length > 0 ? (
+            <div className="grid" style={{ gap: 8 }}>
+              <h2 className="font-display" style={{ margin: 0, fontSize: 16 }}>Canjeados</h2>
+              {grouped.canjeados.map((cupon) => (
+                <div key={cupon.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px' }}>
+                  <div>
+                    <code style={{ fontSize: 12 }}>{cupon.codigo}</code>
+                    <div className="muted" style={{ fontSize: 12 }}>{cupon.descripcion_canje || 'Canjeado en tienda'}</div>
+                  </div>
+                  <span className="badge-gray">Canjeado</span>
                 </div>
-              </article>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : null}
 
-          <div className="grid">
-            <h2 className="font-display" style={{ margin: 0 }}>Canjeados</h2>
-            {grouped.canjeados.length === 0 ? <div className="muted">No tienes cupones canjeados.</div> : null}
-            {grouped.canjeados.map((cupon) => (
-              <div key={cupon.id} className="card muted">
-                {cupon.codigo} - {cupon.descripcion_canje || 'Canjeado en tienda'}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid">
-            <h2 className="font-display" style={{ margin: 0 }}>Vencidos</h2>
-            {grouped.vencidos.length === 0 ? <div className="muted">Sin cupones vencidos.</div> : null}
-            {grouped.vencidos.map((cupon) => (
-              <div key={cupon.id} className="card muted" style={{ opacity: 0.65 }}>
-                {cupon.codigo} - Vencio el {new Date(cupon.fecha_vencimiento).toLocaleDateString()}
-              </div>
-            ))}
-          </div>
-        </section>
+          {grouped.vencidos.length > 0 ? (
+            <div className="grid" style={{ gap: 8 }}>
+              <h2 className="font-display" style={{ margin: 0, fontSize: 16 }}>Vencidos</h2>
+              {grouped.vencidos.map((cupon) => (
+                <div key={cupon.id} className="card" style={{ opacity: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px' }}>
+                  <code style={{ fontSize: 12 }}>{cupon.codigo}</code>
+                  <span className="badge-red">Vencido</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )

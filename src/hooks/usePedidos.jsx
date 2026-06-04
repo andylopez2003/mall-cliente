@@ -32,30 +32,40 @@ export function usePedidos() {
     }
   }
 
-  async function slotsDisponibles() {
+  async function slotsConDisponibilidad() {
     const config = await getConfiguracion()
     const hoy = new Date().toISOString().slice(0, 10)
 
     const { data: pedidosHoy, error } = await supabase
       .from('pedidos')
-      .select('horario,hora_entrega_asignada,created_at')
+      .select('horario,hora_entrega_asignada')
       .gte('created_at', `${hoy}T00:00:00`)
-      .lt('created_at', `${hoy}T23:59:59`)
+      .lte('created_at', `${hoy}T23:59:59`)
 
     if (error) throw error
 
     const counts = (pedidosHoy || []).reduce((acc, pedido) => {
       const slot = String(pedido.hora_entrega_asignada || pedido.horario || '').slice(0, 5)
-      acc[slot] = (acc[slot] || 0) + 1
+      if (slot) acc[slot] = (acc[slot] || 0) + 1
       return acc
     }, {})
 
-    return config.slots_entrega.filter((slot) => {
-      const hour = Number(slot.slice(0, 2))
-      const jornada = hour < 15 ? 'manana' : 'tarde'
-      const max = jornada === 'manana' ? config.max_pedidos_manana : config.max_pedidos_tarde
-      return (counts[slot] || 0) < max
-    })
+    const todosSlots = config.slots_entrega
+    const mananaSlots = todosSlots.filter((s) => Number(s.slice(0, 2)) < 15)
+    const tardeSlots  = todosSlots.filter((s) => Number(s.slice(0, 2)) >= 15)
+
+    function buildJornada(nombre, rango, slots) {
+      const slotInfo = slots.map((hora) => {
+        const max = Number(hora.slice(0, 2)) < 15 ? config.max_pedidos_manana : config.max_pedidos_tarde
+        return { hora, disponible: (counts[hora] || 0) < max }
+      })
+      return { nombre, rango, slots: slotInfo, disponibles: slotInfo.filter((s) => s.disponible).length }
+    }
+
+    return [
+      buildJornada('Mañana', '13:00 – 15:00', mananaSlots),
+      buildJornada('Tarde',  '17:00 – 19:00', tardeSlots),
+    ]
   }
 
   async function crearPedido(payload) {
@@ -97,5 +107,5 @@ export function usePedidos() {
     return pedido
   }
 
-  return { slotsDisponibles, crearPedido, getConfiguracion }
+  return { slotsConDisponibilidad, crearPedido, getConfiguracion }
 }
