@@ -84,12 +84,11 @@ export default function HacerPedido() {
       const cleanItems = validItems
       if (cleanItems.length === 0) { setError('Tu carrito no tiene productos válidos.'); return }
 
-      // Verificar que todos los cupones del carrito aún estén activos/reservados
+      // Verificar que todos los cupones del carrito aún estén activos
       for (const cupon of cuponesAplicados) {
         const { data: cuponCheck } = await supabase
           .from('cupones').select('estado').eq('id', cupon.id).single()
-        const estadoOk = cuponCheck && ['activo', 'en_uso'].includes(cuponCheck.estado)
-        if (!estadoOk) {
+        if (cuponCheck?.estado !== 'activo') {
           setError(`El cupón ${cupon.codigo} ya no está disponible. Por favor quítalo y vuelve a intentarlo.`)
           return
         }

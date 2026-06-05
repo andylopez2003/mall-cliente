@@ -24,6 +24,7 @@ export default function MiPedido() {
   const [editTelefono, setEditTelefono] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
+  const [cancelando, setCancelando] = useState(null)
 
   async function buscar(e) {
     e.preventDefault()
@@ -52,6 +53,26 @@ export default function MiPedido() {
     setEditDireccion(pedido.direccion_entrega || '')
     setEditTelefono(pedido.telefono_contacto || '')
     setSaveMsg('')
+  }
+
+  async function cancelarPedido(pedidoId) {
+    if (!window.confirm('¿Seguro que deseas cancelar este pedido?')) return
+    setCancelando(pedidoId)
+    setError('')
+    const { error: err } = await supabase
+      .from('pedidos')
+      .update({ estado: 'cancelado' })
+      .eq('id', pedidoId)
+      .eq('estado', 'pendiente')
+
+    if (err) {
+      setError('No se pudo cancelar el pedido. Si necesitas cancelarlo contáctanos por WhatsApp.')
+    } else {
+      setPedidos((current) => current.filter((p) => p.id !== pedidoId))
+      setSaveMsg('Pedido cancelado correctamente.')
+      window.setTimeout(() => setSaveMsg(''), 4000)
+    }
+    setCancelando(null)
   }
 
   async function guardar(pedidoId) {
@@ -164,12 +185,23 @@ export default function MiPedido() {
                 <div><span className="muted">Dirección: </span>{pedido.direccion_entrega}</div>
                 <div><span className="muted">Teléfono: </span>{pedido.telefono_contacto || '—'}</div>
                 {pedido.estado === 'pendiente' ? (
-                  <button className="btn-outline" type="button" onClick={() => iniciarEdicion(pedido)} style={{ marginTop: 4 }}>
-                    <Edit2 size={14} /> Editar datos de entrega
-                  </button>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                    <button className="btn-outline" type="button" onClick={() => iniciarEdicion(pedido)} style={{ flex: 1 }}>
+                      <Edit2 size={14} /> Editar datos
+                    </button>
+                    <button
+                      className="btn-danger"
+                      type="button"
+                      onClick={() => cancelarPedido(pedido.id)}
+                      disabled={cancelando === pedido.id}
+                      style={{ flex: 1, fontSize: 13 }}
+                    >
+                      {cancelando === pedido.id ? 'Cancelando...' : 'Cancelar pedido'}
+                    </button>
+                  </div>
                 ) : (
                   <p className="muted" style={{ margin: 0, fontSize: 12 }}>
-                    Solo puedes editar pedidos en estado Pendiente.
+                    Solo puedes editar o cancelar pedidos en estado Pendiente.
                   </p>
                 )}
               </div>

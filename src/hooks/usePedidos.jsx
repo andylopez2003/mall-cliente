@@ -63,6 +63,7 @@ export function usePedidos() {
       .select('horario,hora_entrega_asignada')
       .gte('created_at', `${hoy}T00:00:00`)
       .lte('created_at', `${hoy}T23:59:59`)
+      .neq('estado', 'cancelado')
     if (error) throw error
 
     const counts = (pedidosHoy || []).reduce((acc, p) => {
@@ -100,18 +101,17 @@ export function usePedidos() {
     const generaCupon = Boolean(payload.cliente_id) && nivelCupon > 0
 
     // ── PASO 1: Marcar todos los cupones como canjeados ──────────────────────
-    // Aceptar tanto 'en_uso' (reservado en carrito) como 'activo' (por si acaso)
     for (const cuponId of cuponIds) {
       const { data: resultado, error: cuponError } = await supabase
         .from('cupones')
         .update({ estado: 'canjeado', fecha_canje: new Date().toISOString() })
         .eq('id', cuponId)
-        .in('estado', ['activo', 'en_uso'])
+        .eq('estado', 'activo')
         .select('id')
 
       if (cuponError) throw new Error('Error al procesar el cupón. Intenta de nuevo.')
       if (!resultado || resultado.length === 0) {
-        throw new Error('Uno de los cupones ya fue utilizado por otra persona. Por favor quítalo e intenta de nuevo.')
+        throw new Error('El cupón ya fue utilizado o no está disponible. Por favor quítalo e intenta de nuevo.')
       }
     }
 
@@ -129,18 +129,11 @@ export function usePedidos() {
         estado: 'pendiente',
         genera_cupon: generaCupon,
         telefono_contacto: payload.telefono_contacto || null,
-        cupon_canjeado_id: cuponIds[0] || null,
       })
       .select()
       .single()
 
-    if (pedidoError) {
-      // Revertir: restaurar todos los cupones canjeados en este intento
-      for (const cuponId of cuponIds) {
-        await supabase.from('cupones').update({ estado: 'activo', fecha_canje: null }).eq('id', cuponId)
-      }
-      throw pedidoError
-    }
+    if (pedidoError) throw pedidoError
 
     // ── PASO 3: Insertar detalle del pedido ──────────────────────────────────
     const detalle = payload.items.map((item) => ({
