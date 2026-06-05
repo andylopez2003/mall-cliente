@@ -42,8 +42,7 @@ export default function ConfirmacionPedido() {
           <Ticket size={22} style={{ color: 'var(--mall-accent)', marginBottom: 8 }} />
           <strong style={{ display: 'block', marginBottom: 6 }}>¡Ganaste un cupón de descuento!</strong>
           <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-            Tu cupón se generará automáticamente cuando tu pedido sea marcado como <strong>entregado</strong>.
-            Podrás verlo en la sección <strong>"Mis Cupones"</strong> ingresando tu teléfono.
+            Tu cupón de descuento se generará al confirmar tu pedido y <strong>te lo entregaremos físicamente junto con tu compra</strong>. Guárdalo para usarlo en tu próximo pedido.
           </p>
         </div>
       ) : null}

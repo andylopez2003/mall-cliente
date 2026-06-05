@@ -94,30 +94,56 @@ export default function Carrito() {
       ) : (
         <>
           {/* Barra de progreso hacia cupón */}
-          <div className="card" style={{ padding: '12px 14px' }}>
-            {qualifies ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Ticket size={16} style={{ color: 'var(--mall-accent)' }} />
-                <strong style={{ fontSize: 13, color: 'var(--mall-dark)' }}>
-                  ¡Este pedido generará un cupón de {money(couponValue)} al ser entregado!
-                </strong>
+          {qualifies ? (
+            <div style={{
+              background: 'linear-gradient(135deg, #1D9E75, #14795a)',
+              borderRadius: 14,
+              padding: '14px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              boxShadow: '0 4px 16px rgba(29,158,117,.35)',
+            }}>
+              <div style={{ fontSize: 36, lineHeight: 1, flexShrink: 0 }}>🎟️</div>
+              <div>
+                <div style={{ color: 'white', fontWeight: 900, fontSize: 16, marginBottom: 2 }}>
+                  ¡Ganaste un cupón de {money(couponValue)}!
+                </div>
+                <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 13 }}>
+                  Te lo entregaremos junto con tu pedido.
+                </div>
               </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Ticket size={15} style={{ color: 'var(--mall-accent)', flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: 'var(--mall-muted)' }}>
-                  Te faltan <strong style={{ color: 'var(--mall-text)' }}>{money(remaining)}</strong> para ganar un cupón de {money(couponValue)}
-                </span>
-              </div>
-            )}
-            <div style={{ marginTop: 8, height: 6, background: '#edf4f1', borderRadius: 999, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%', width: `${progress}%`,
-                background: qualifies ? 'var(--mall-accent)' : 'var(--mall-main)',
-                borderRadius: 999, transition: 'width 0.4s ease',
-              }} />
             </div>
-          </div>
+          ) : (
+            <div style={{
+              background: 'linear-gradient(135deg, #fff8e7, #ffe9a0)',
+              border: '2px solid var(--mall-accent)',
+              borderRadius: 14,
+              padding: '14px 16px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>🎟️</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: '#4a3200' }}>
+                    ¡Agrega {money(remaining)} más y gana un cupón de {money(couponValue)}!
+                  </div>
+                  <div style={{ fontSize: 12, color: '#8a6200', marginTop: 2 }}>
+                    Progreso: {money(totalMonto)} / {money(threshold)}
+                  </div>
+                </div>
+              </div>
+              <div style={{ height: 10, background: 'rgba(255,255,255,.6)', borderRadius: 999, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${progress}%`,
+                  background: 'linear-gradient(90deg, #EF9F27, #f5b942)',
+                  borderRadius: 999,
+                  transition: 'width 0.5s ease',
+                  boxShadow: '0 2px 8px rgba(239,159,39,.5)',
+                }} />
+              </div>
+            </div>
+          )}
 
           {/* Productos */}
           <section className="card">

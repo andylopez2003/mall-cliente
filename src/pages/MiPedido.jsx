@@ -11,7 +11,7 @@ const ESTADO = {
 }
 
 export default function MiPedido() {
-  const [telefono, setTelefono] = useState('')
+  const [numeroPedido, setNumeroPedido] = useState('')
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -25,7 +25,8 @@ export default function MiPedido() {
 
   async function buscar(e) {
     e.preventDefault()
-    if (!telefono.trim()) return
+    const num = numeroPedido.trim().toLowerCase()
+    if (!num) return
     setLoading(true)
     setError('')
     setSaveMsg('')
@@ -34,7 +35,7 @@ export default function MiPedido() {
     const { data, error: err } = await supabase
       .from('pedidos')
       .select('*, detalle_pedidos(*)')
-      .eq('telefono_contacto', telefono.trim())
+      .like('id', `${num}%`)
       .in('estado', ['pendiente', 'confirmado', 'preparando', 'en_camino'])
       .order('created_at', { ascending: false })
 
@@ -80,18 +81,26 @@ export default function MiPedido() {
     <div className="grid" style={{ gap: 16 }}>
       <h1 className="page-title">Mi Pedido</h1>
       <p className="page-subtitle" style={{ marginBottom: 0 }}>
-        Consulta tus pedidos activos y edita tus datos si algo está mal.
+        Ingresa tu número de pedido para ver el estado de tu entrega.
       </p>
 
+      <div className="card" style={{ background: '#fffdf0', border: '1px solid #f5e08a', padding: 14, fontSize: 13 }}>
+        <strong>¿Dónde encuentro mi número de pedido?</strong>
+        <p className="muted" style={{ margin: '4px 0 0' }}>
+          Al confirmar tu pedido se te mostró un número de 8 caracteres (ej: <strong style={{ fontFamily: 'monospace' }}>A1B2C3D4</strong>). Ingrésalo aquí para ver tu estado.
+        </p>
+      </div>
+
       <form className="card grid" style={{ gap: 10 }} onSubmit={buscar}>
-        <label style={{ fontWeight: 700, fontSize: 14 }}>¿Con qué teléfono hiciste tu pedido?</label>
+        <label style={{ fontWeight: 700, fontSize: 14 }}>Número de pedido</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             className="input-field"
-            placeholder="Tu teléfono"
-            value={telefono}
-            onChange={(e) => setTelefono(e.target.value)}
-            style={{ flex: 1 }}
+            placeholder="Ej: A1B2C3D4"
+            value={numeroPedido}
+            onChange={(e) => setNumeroPedido(e.target.value.toUpperCase())}
+            style={{ flex: 1, fontFamily: 'monospace', letterSpacing: 2, textTransform: 'uppercase' }}
+            maxLength={8}
           />
           <button className="btn-primary" type="submit" style={{ flexShrink: 0, padding: '0 16px' }}>
             <Search size={17} />
@@ -99,16 +108,16 @@ export default function MiPedido() {
         </div>
       </form>
 
-      {loading ? <div className="card muted" style={{ textAlign: 'center', padding: 20 }}>Buscando pedidos...</div> : null}
+      {loading ? <div className="card muted" style={{ textAlign: 'center', padding: 20 }}>Buscando pedido...</div> : null}
       {error ? <div className="error">{error}</div> : null}
       {saveMsg ? <div className="success">{saveMsg}</div> : null}
 
       {buscado && pedidos.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '32px 16px' }}>
-          <div style={{ fontSize: 48, marginBottom: 10 }}>✅</div>
-          <strong>No tienes pedidos pendientes</strong>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>🔍</div>
+          <strong>No encontramos ese pedido</strong>
           <p className="muted" style={{ margin: '6px 0 0', fontSize: 13 }}>
-            Todos tus pedidos han sido entregados o no hay pedidos activos con ese teléfono.
+            Verifica el número e inténtalo de nuevo. Solo se muestran pedidos activos (no entregados).
           </p>
         </div>
       ) : null}
@@ -122,7 +131,7 @@ export default function MiPedido() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--mall-muted)' }}>N° de pedido</div>
-                <strong style={{ fontSize: 13, letterSpacing: 0.5 }}>{pedido.id.slice(0, 8).toUpperCase()}</strong>
+                <strong style={{ fontSize: 15, fontFamily: 'monospace', letterSpacing: 1 }}>{pedido.id.slice(0, 8).toUpperCase()}</strong>
               </div>
               <span className={estado.cls}>{estado.label}</span>
             </div>
