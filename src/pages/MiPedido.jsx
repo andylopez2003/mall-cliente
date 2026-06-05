@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Edit2, Phone, Search } from 'lucide-react'
 import { supabase } from '../supabase.js'
 import { money } from '../utils/format.js'
@@ -11,7 +12,8 @@ const ESTADO = {
 }
 
 export default function MiPedido() {
-  const [numeroPedido, setNumeroPedido] = useState('')
+  const location = useLocation?.() || {}
+  const [numeroPedido, setNumeroPedido] = useState(location.state?.numeroInicial || '')
   const [pedidos, setPedidos] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

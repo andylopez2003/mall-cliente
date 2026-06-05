@@ -21,9 +21,8 @@ function guardarStorage(items) {
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState(leerStorage)
-  const [cuponAplicado, setCuponAplicado] = useState(null)
+  const [cuponesAplicados, setCuponesAplicados] = useState([])
 
-  // Guardar en localStorage cada vez que cambie el carrito
   useEffect(() => {
     guardarStorage(items)
   }, [items])
@@ -58,23 +57,30 @@ export function CartProvider({ children }) {
 
   function limpiarCarrito() {
     setItems([])
-    setCuponAplicado(null)
+    setCuponesAplicados([])
     guardarStorage([])
   }
 
   function aplicarCupon(cupon) {
-    setCuponAplicado(cupon)
+    setCuponesAplicados((prev) => {
+      if (prev.find((c) => c.id === cupon.id)) return prev
+      return [...prev, cupon]
+    })
   }
 
-  function quitarCupon() {
-    setCuponAplicado(null)
+  function quitarCupon(cuponId) {
+    if (cuponId) {
+      setCuponesAplicados((prev) => prev.filter((c) => c.id !== cuponId))
+    } else {
+      setCuponesAplicados([])
+    }
   }
 
   const value = useMemo(() => {
-    const totalItems = items.reduce((sum, item) => sum + Number(item.cantidad || 0), 0)
-    const totalMonto = items.reduce((sum, item) => sum + Number(item.precio || 0) * Number(item.cantidad || 0), 0)
-    const descuentoCupon = cuponAplicado ? Number(cuponAplicado.valor || 0) : 0
-    const totalConDescuento = Math.max(totalMonto - descuentoCupon, 0)
+    const totalItems    = items.reduce((sum, item) => sum + Number(item.cantidad || 0), 0)
+    const totalMonto    = items.reduce((sum, item) => sum + Number(item.precio || 0) * Number(item.cantidad || 0), 0)
+    const descuentoTotal = cuponesAplicados.reduce((sum, c) => sum + Number(c.valor || 0), 0)
+    const totalConDescuento = Math.max(totalMonto - descuentoTotal, 0)
 
     return {
       items,
@@ -84,12 +90,13 @@ export function CartProvider({ children }) {
       limpiarCarrito,
       aplicarCupon,
       quitarCupon,
-      cuponAplicado,
+      cuponesAplicados,
+      descuentoTotal,
       totalItems,
       totalMonto,
       totalConDescuento,
     }
-  }, [items, cuponAplicado])
+  }, [items, cuponesAplicados])
 
   return <CarritoContext.Provider value={value}>{children}</CarritoContext.Provider>
 }

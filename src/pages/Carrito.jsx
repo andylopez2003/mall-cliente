@@ -9,8 +9,8 @@ export default function Carrito() {
   const navigate = useNavigate()
   const {
     items, cambiarCantidad, quitarItem,
-    totalMonto, totalItems, totalConDescuento,
-    cuponAplicado, aplicarCupon, quitarCupon,
+    totalMonto, totalItems, totalConDescuento, descuentoTotal,
+    cuponesAplicados, aplicarCupon, quitarCupon,
   } = useCart()
 
   const [threshold, setThreshold] = useState(150)
@@ -87,6 +87,18 @@ export default function Carrito() {
     }
     if (data.estado !== 'activo') {
       setCuponError('Este cupón no está disponible.')
+      return
+    }
+
+    if (cuponesAplicados.find((c) => c.id === data.id)) {
+      setCuponError('Este cupón ya está aplicado.')
+      return
+    }
+
+    // Verificar que el total no baje del mínimo al aplicar este cupón
+    const nuevoTotal = totalConDescuento - Number(data.valor || 0)
+    if (nuevoTotal < minAmount) {
+      setCuponError(`Este cupón llevaría el total por debajo del mínimo de ${money(minAmount)}.`)
       return
     }
 
@@ -195,48 +207,50 @@ export default function Carrito() {
             ))}
           </section>
 
-          {/* Sección de cupón — solo 1 permitido */}
+          {/* Sección de cupones — múltiples permitidos */}
           <section className="card grid" style={{ gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Tag size={17} style={{ color: 'var(--mall-accent)' }} />
-              <strong style={{ fontSize: 15 }}>¿Tienes un cupón de descuento?</strong>
+              <strong style={{ fontSize: 15 }}>¿Tienes cupones de descuento?</strong>
             </div>
             <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-              Solo se puede aplicar un cupón por pedido. Cada cupón solo puede usarse una vez.
+              Puedes aplicar varios cupones. El total después de descuentos debe ser mínimo {money(minAmount)}.
             </p>
 
-            {cuponAplicado ? (
-              <div style={{
+            {/* Lista de cupones aplicados */}
+            {cuponesAplicados.map((c) => (
+              <div key={c.id} style={{
                 background: '#dff7ed', border: '1.5px solid var(--mall-main)',
-                borderRadius: 10, padding: '12px 14px',
+                borderRadius: 10, padding: '10px 14px',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--mall-dark)' }}>
-                    Cupón aplicado: <code>{cuponAplicado.codigo}</code>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--mall-dark)' }}>
+                    <code style={{ letterSpacing: 1 }}>{c.codigo}</code>
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--mall-main)', fontWeight: 700, marginTop: 2 }}>
-                    Descuento: −{money(cuponAplicado.valor)}
+                    −{money(c.valor)}
                   </div>
                 </div>
-                <button type="button" onClick={quitarCupon} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4 }} title="Quitar cupón">
-                  <X size={18} />
+                <button type="button" onClick={() => quitarCupon(c.id)} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4 }}>
+                  <X size={17} />
                 </button>
               </div>
-            ) : (
-              <form onSubmit={validarCupon} style={{ display: 'flex', gap: 8 }}>
-                <input
-                  className="input-field"
-                  placeholder="Código del cupón (ej: MALL-ABC123)"
-                  value={codigoInput}
-                  onChange={(e) => { setCodigoInput(e.target.value.toUpperCase()); setCuponError('') }}
-                  style={{ flex: 1, textTransform: 'uppercase', letterSpacing: 1 }}
-                />
-                <button type="submit" className="btn-outline" disabled={cuponLoading || !codigoInput.trim()} style={{ flexShrink: 0, padding: '0 14px' }}>
-                  {cuponLoading ? '...' : 'Aplicar'}
-                </button>
-              </form>
-            )}
+            ))}
+
+            {/* Input para agregar otro cupón */}
+            <form onSubmit={validarCupon} style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="input-field"
+                placeholder="Código del cupón (ej: MALL-ABC123)"
+                value={codigoInput}
+                onChange={(e) => { setCodigoInput(e.target.value.toUpperCase()); setCuponError('') }}
+                style={{ flex: 1, textTransform: 'uppercase', letterSpacing: 1 }}
+              />
+              <button type="submit" className="btn-outline" disabled={cuponLoading || !codigoInput.trim()} style={{ flexShrink: 0, padding: '0 14px' }}>
+                {cuponLoading ? '...' : 'Aplicar'}
+              </button>
+            </form>
 
             {cuponError ? <div className="error" style={{ margin: 0, fontSize: 13 }}>{cuponError}</div> : null}
           </section>
@@ -247,10 +261,16 @@ export default function Carrito() {
               <span>Subtotal</span>
               <span>{money(totalMonto)}</span>
             </div>
-            {cuponAplicado ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--mall-main)', fontWeight: 700 }}>
-                <span>Cupón {cuponAplicado.codigo}</span>
-                <span>−{money(cuponAplicado.valor)}</span>
+            {cuponesAplicados.map((c) => (
+              <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--mall-main)', fontWeight: 700 }}>
+                <span>Cupón <code style={{ letterSpacing: 1 }}>{c.codigo}</code></span>
+                <span>−{money(c.valor)}</span>
+              </div>
+            ))}
+            {descuentoTotal > 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--mall-main)', borderTop: '1px dashed var(--mall-line)', paddingTop: 6 }}>
+                <span>Descuento total cupones</span>
+                <span>−{money(descuentoTotal)}</span>
               </div>
             ) : null}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 18, borderTop: '1px solid var(--mall-line)', paddingTop: 10 }}>

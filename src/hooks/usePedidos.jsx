@@ -90,29 +90,25 @@ export function usePedidos() {
   async function crearPedido(payload) {
     const config = await getConfiguracion()
     const totalBruto     = Number(payload.monto_total || 0)
-    const descuentoCupon = payload.cuponId ? Number(payload.descuento_cupon || 0) : 0
+    const descuentoCupon = cuponIds.length > 0 ? Number(payload.descuento_cupones || payload.descuento_cupon || 0) : 0
     const totalFinal     = Math.max(totalBruto - descuentoCupon, 0)
     // Determinar si califica para cupón según niveles configurados
     const umbrales    = config.umbrales_cupones || [[config.monto_cupon_domicilio || 150, config.valor_cupon_domicilio || 10]]
     const nivelCupon  = umbrales.reduce((acc, [min, val]) => totalBruto >= min ? val : acc, 0)
     const generaCupon = Boolean(payload.cliente_id) && nivelCupon > 0
 
-    // ── PASO 1: Marcar el cupón como canjeado ANTES de crear el pedido ──
-    // Si falla (cupón ya canjeado o no existe), se lanza error y no se crea nada.
-    if (payload.cuponId) {
+    // ── PASO 1: Marcar todos los cupones como canjeados ANTES de crear el pedido ──
+    const cuponIds = Array.isArray(payload.cuponIds) ? payload.cuponIds : (payload.cuponId ? [payload.cuponId] : [])
+    for (const cuponId of cuponIds) {
       const { data: resultado, error: cuponError } = await supabase
         .from('cupones')
         .update({ estado: 'canjeado', fecha_canje: new Date().toISOString() })
-        .eq('id', payload.cuponId)
-        .eq('estado', 'activo')   // solo funciona si aún está activo
+        .eq('id', cuponId)
+        .eq('estado', 'activo')
         .select('id')
 
-      if (cuponError) {
-        throw new Error('Error al procesar el cupón. Intenta de nuevo.')
-      }
-      if (!resultado || resultado.length === 0) {
-        throw new Error('Este cupón ya fue utilizado o ya no está disponible. Por favor quítalo e intenta sin él.')
-      }
+      if (cuponError) throw new Error('Error al procesar el cupón. Intenta de nuevo.')
+      if (!resultado || resultado.length === 0) throw new Error('Uno de los cupones ya fue utilizado. Por favor quítalo e intenta de nuevo.')
     }
 
     // ── PASO 2: Crear el pedido ──
@@ -135,12 +131,9 @@ export function usePedidos() {
       .single()
 
     if (pedidoError) {
-      // Si el pedido falla, intentar restaurar el cupón
-      if (payload.cuponId) {
-        await supabase
-          .from('cupones')
-          .update({ estado: 'activo', fecha_canje: null })
-          .eq('id', payload.cuponId)
+      // Si el pedido falla, restaurar todos los cupones canjeados
+      for (const cuponId of cuponIds) {
+        await supabase.from('cupones').update({ estado: 'activo', fecha_canje: null }).eq('id', cuponId)
       }
       throw pedidoError
     }

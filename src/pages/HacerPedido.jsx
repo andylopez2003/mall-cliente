@@ -15,7 +15,7 @@ function addTwenty(time) {
 
 export default function HacerPedido() {
   const navigate = useNavigate()
-  const { items, totalMonto, totalConDescuento, cuponAplicado, limpiarCarrito, cambiarCantidad, quitarItem } = useCart()
+  const { items, totalMonto, totalConDescuento, descuentoTotal, cuponesAplicados, limpiarCarrito, cambiarCantidad, quitarItem } = useCart()
   const { validateCart, loading: catalogoLoading } = useCatalogo()
   const { slotsConDisponibilidad, crearPedido, getConfiguracion } = usePedidos()
 
@@ -38,7 +38,8 @@ export default function HacerPedido() {
 
   const haySlots = jornadas.some((j) => j.disponibles > 0)
   const validItems = useMemo(() => (catalogoLoading ? items : validateCart(items)), [items, validateCart, catalogoLoading])
-  const generaraCupon = totalMonto >= cuponThreshold
+  const generaraCupon    = totalMonto >= cuponThreshold
+  const cuponIds         = cuponesAplicados.map((c) => c.id)
 
   if (items.length === 0) return <Navigate to="/" replace />
 
@@ -83,17 +84,20 @@ export default function HacerPedido() {
       const cleanItems = validItems
       if (cleanItems.length === 0) { setError('Tu carrito no tiene productos válidos.'); return }
 
-      // Verificar que el cupón del carrito aún esté activo antes de continuar
-      if (cuponAplicado) {
+      // Verificar que todos los cupones del carrito aún estén activos
+      for (const cupon of cuponesAplicados) {
         const { data: cuponCheck } = await supabase
-          .from('cupones')
-          .select('estado')
-          .eq('id', cuponAplicado.id)
-          .single()
+          .from('cupones').select('estado').eq('id', cupon.id).single()
         if (!cuponCheck || cuponCheck.estado !== 'activo') {
-          setError('El cupón ya fue utilizado. Por favor quítalo y vuelve a intentarlo.')
+          setError(`El cupón ${cupon.codigo} ya fue utilizado. Por favor quítalo y vuelve a intentarlo.`)
           return
         }
+      }
+
+      // Verificar mínimo Q20 después de descuentos
+      if (totalConDescuento < 20) {
+        setError('El total después de aplicar cupones debe ser mínimo Q20.00.')
+        return
       }
 
       const { data: clienteExistente } = await supabase
@@ -116,8 +120,8 @@ export default function HacerPedido() {
         horario: slot,
         hora_entrega_asignada: slot,
         monto_total: totalMonto,
-        descuento_cupon: cuponAplicado ? cuponAplicado.valor : 0,
-        cuponId: cuponAplicado?.id || null,
+        descuento_cupones: descuentoTotal,
+        cuponIds: cuponIds,
         telefono_contacto: telefono.trim(),
         items: cleanItems.map((item) => ({
           producto_id: item.producto_id,
@@ -133,7 +137,8 @@ export default function HacerPedido() {
           pedidoId: pedido.id,
           total: totalConDescuento,
           horario: slot,
-          cuponAplicado: cuponAplicado ? cuponAplicado.valor : 0,
+          descuentoCupones: descuentoTotal,
+          numCupones: cuponesAplicados.length,
           generaCupon,
         },
       })
@@ -177,15 +182,21 @@ export default function HacerPedido() {
               </div>
             </div>
           ))}
-          {cuponAplicado ? (
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--mall-main)', fontSize: 14, fontWeight: 700 }}>
-              <span>Cupón {cuponAplicado.codigo}</span>
-              <span>−{money(cuponAplicado.valor)}</span>
+          {cuponesAplicados.map((c) => (
+            <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--mall-main)', fontSize: 13, fontWeight: 700 }}>
+              <span>Cupón {c.codigo}</span>
+              <span>−{money(c.valor)}</span>
             </div>
-          ) : null}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 17, borderTop: '1px solid var(--mall-line)', paddingTop: 10 }}>
-            <span>Total</span><span className="price">{money(totalConDescuento)}</span>
-          </div>
+          ))}
+          {descuentoTotal > 0 ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 17, borderTop: '1px solid var(--mall-line)', paddingTop: 10 }}>
+              <span>Total</span><span className="price">{money(totalConDescuento)}</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 17, borderTop: '1px solid var(--mall-line)', paddingTop: 10 }}>
+              <span>Total</span><span className="price">{money(totalConDescuento)}</span>
+            </div>
+          )}
           <button className="btn-primary" type="button" onClick={() => setStep(2)}>Continuar</button>
         </section>
       ) : null}
@@ -286,12 +297,12 @@ export default function HacerPedido() {
             <div><span className="muted">Teléfono: </span><strong>{telefono}</strong></div>
             <div><span className="muted">Dirección: </span><strong>{direccion}</strong></div>
             <div><span className="muted">Horario: </span><strong>{slot} – {addTwenty(slot)}</strong></div>
-            {cuponAplicado ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--mall-main)', fontWeight: 700 }}>
-                <span>Cupón {cuponAplicado.codigo}</span>
-                <span>−{money(cuponAplicado.valor)}</span>
+            {cuponesAplicados.map((c) => (
+              <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--mall-main)', fontWeight: 700, fontSize: 13 }}>
+                <span>Cupón {c.codigo}</span>
+                <span>−{money(c.valor)}</span>
               </div>
-            ) : null}
+            ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 17, borderTop: '1px solid var(--mall-line)', paddingTop: 8 }}>
               <span>Total a pagar</span><span className="price">{money(totalConDescuento)}</span>
             </div>
