@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Minus, Plus, Tag, Ticket, Trash2, X } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
@@ -20,6 +20,19 @@ export default function Carrito() {
   const [codigoInput, setCodigoInput] = useState('')
   const [cuponLoading, setCuponLoading] = useState(false)
   const [cuponError, setCuponError] = useState('')
+
+  // Ref para capturar los cupones al momento de desmontar el componente
+  const cuponesRef = useRef(cuponesAplicados)
+  useEffect(() => { cuponesRef.current = cuponesAplicados }, [cuponesAplicados])
+
+  // Al salir del carrito sin confirmar → liberar cupones reservados (en_uso → activo)
+  useEffect(() => {
+    return () => {
+      cuponesRef.current.forEach((cp) => {
+        supabase.from('cupones').update({ estado: 'activo' }).eq('id', cp.id).eq('estado', 'en_uso')
+      })
+    }
+  }, [])
 
   useEffect(() => {
     supabase
@@ -68,43 +81,54 @@ export default function Carrito() {
       .eq('codigo', codigo)
       .maybeSingle()
 
-    setCuponLoading(false)
-
-    if (error)  { setCuponError('Error al verificar el cupón.'); return }
-    if (!data)  { setCuponError('Código no válido. Verifica que esté bien escrito.'); return }
+    if (error)  { setCuponLoading(false); setCuponError('Error al verificar el cupón.'); return }
+    if (!data)  { setCuponLoading(false); setCuponError('Código no válido. Verifica que esté bien escrito.'); return }
 
     if (data.estado === 'canjeado') {
-      setCuponError('Este código ya fue utilizado y no puede volver a usarse.')
-      return
+      setCuponLoading(false); setCuponError('Este cupón ya fue utilizado y no puede volver a usarse.'); return
     }
     if (data.estado === 'en_uso') {
-      setCuponError('Este cupón ya está reservado en otro pedido activo. Si ese pedido fue cancelado, el cupón volverá a estar disponible en unos minutos.')
-      return
+      setCuponLoading(false); setCuponError('Este cupón ya está siendo usado en otro pedido activo.'); return
     }
     if (data.estado === 'vencido' || new Date(data.fecha_vencimiento) < new Date()) {
-      setCuponError('Este cupón ha vencido.')
-      return
+      setCuponLoading(false); setCuponError('Este cupón ha vencido.'); return
     }
     if (data.estado !== 'activo') {
-      setCuponError('Este cupón no está disponible.')
-      return
+      setCuponLoading(false); setCuponError('Este cupón no está disponible.'); return
+    }
+    if (cuponesAplicados.find((cp) => cp.id === data.id)) {
+      setCuponLoading(false); setCuponError('Este cupón ya está aplicado.'); return
     }
 
-    if (cuponesAplicados.find((c) => c.id === data.id)) {
-      setCuponError('Este cupón ya está aplicado.')
-      return
-    }
-
-    // Verificar que el total no baje del mínimo al aplicar este cupón
     const nuevoTotal = totalConDescuento - Number(data.valor || 0)
     if (nuevoTotal < minAmount) {
-      setCuponError(`Este cupón llevaría el total por debajo del mínimo de ${money(minAmount)}.`)
+      setCuponLoading(false); setCuponError(`Este cupón llevaría el total por debajo del mínimo de ${money(minAmount)}.`); return
+    }
+
+    // Reservar el cupón: activo → en_uso (bloquea que otro dispositivo lo use)
+    const { data: reservado, error: reserveErr } = await supabase
+      .from('cupones')
+      .update({ estado: 'en_uso' })
+      .eq('id', data.id)
+      .eq('estado', 'activo')
+      .select('id')
+
+    setCuponLoading(false)
+
+    if (reserveErr || !reservado || reservado.length === 0) {
+      setCuponError('El cupón ya no está disponible. Puede que alguien más lo tomó en este momento.')
       return
     }
 
     aplicarCupon({ id: data.id, codigo: data.codigo, valor: Number(data.valor) })
     setCodigoInput('')
     setCuponError('')
+  }
+
+  async function quitarCuponYRestaurar(cuponId) {
+    // Liberar el cupón reservado al quitarlo del carrito (en_uso → activo)
+    await supabase.from('cupones').update({ estado: 'activo' }).eq('id', cuponId).eq('estado', 'en_uso')
+    quitarCupon(cuponId)
   }
 
   return (
@@ -232,7 +256,7 @@ export default function Carrito() {
                     −{money(c.valor)}
                   </div>
                 </div>
-                <button type="button" onClick={() => quitarCupon(c.id)} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4 }}>
+                <button type="button" onClick={() => quitarCuponYRestaurar(c.id)} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4 }}>
                   <X size={17} />
                 </button>
               </div>

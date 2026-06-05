@@ -2,7 +2,6 @@ import { supabase } from '../supabase.js'
 
 const DEFAULT_SLOTS = ['13:00', '13:20', '13:40', '14:00', '14:20', '14:40', '17:00', '17:20', '17:40', '18:00', '18:20', '18:40']
 
-// Expande un rango "13:00-15:00" en slots individuales de 20 minutos
 function expandRange(range) {
   const parts = range.split('-')
   if (parts.length < 2) return [range]
@@ -24,7 +23,6 @@ function parseSlots(value) {
     try { arr = JSON.parse(value) } catch { return DEFAULT_SLOTS }
   }
   if (!Array.isArray(arr) || arr.length === 0) return DEFAULT_SLOTS
-  // Si los slots están en formato rango ("13:00-15:00"), expándelos a slots de 20 min
   const expanded = arr.flatMap((s) =>
     typeof s === 'string' && s.includes('-') && s.length > 5 ? expandRange(s) : [s],
   )
@@ -89,29 +87,35 @@ export function usePedidos() {
 
   async function crearPedido(payload) {
     const config = await getConfiguracion()
-    const totalBruto     = Number(payload.monto_total || 0)
+    const totalBruto = Number(payload.monto_total || 0)
+
+    // ⚠️ cuponIds DEBE declararse ANTES de descuentoCupon para evitar TDZ
+    const cuponIds      = Array.isArray(payload.cuponIds) ? payload.cuponIds : (payload.cuponId ? [payload.cuponId] : [])
     const descuentoCupon = cuponIds.length > 0 ? Number(payload.descuento_cupones || payload.descuento_cupon || 0) : 0
-    const totalFinal     = Math.max(totalBruto - descuentoCupon, 0)
+    const totalFinal    = Math.max(totalBruto - descuentoCupon, 0)
+
     // Determinar si califica para cupón según niveles configurados
-    const umbrales    = config.umbrales_cupones || [[config.monto_cupon_domicilio || 150, config.valor_cupon_domicilio || 10]]
-    const nivelCupon  = umbrales.reduce((acc, [min, val]) => totalBruto >= min ? val : acc, 0)
+    const umbrales   = config.umbrales_cupones || [[config.monto_cupon_domicilio || 150, config.valor_cupon_domicilio || 10]]
+    const nivelCupon = umbrales.reduce((acc, [minVal, cuponVal]) => totalBruto >= minVal ? cuponVal : acc, 0)
     const generaCupon = Boolean(payload.cliente_id) && nivelCupon > 0
 
-    // ── PASO 1: Marcar todos los cupones como canjeados ANTES de crear el pedido ──
-    const cuponIds = Array.isArray(payload.cuponIds) ? payload.cuponIds : (payload.cuponId ? [payload.cuponId] : [])
+    // ── PASO 1: Marcar todos los cupones como canjeados ──────────────────────
+    // Aceptar tanto 'en_uso' (reservado en carrito) como 'activo' (por si acaso)
     for (const cuponId of cuponIds) {
       const { data: resultado, error: cuponError } = await supabase
         .from('cupones')
         .update({ estado: 'canjeado', fecha_canje: new Date().toISOString() })
         .eq('id', cuponId)
-        .eq('estado', 'activo')
+        .in('estado', ['activo', 'en_uso'])
         .select('id')
 
       if (cuponError) throw new Error('Error al procesar el cupón. Intenta de nuevo.')
-      if (!resultado || resultado.length === 0) throw new Error('Uno de los cupones ya fue utilizado. Por favor quítalo e intenta de nuevo.')
+      if (!resultado || resultado.length === 0) {
+        throw new Error('Uno de los cupones ya fue utilizado por otra persona. Por favor quítalo e intenta de nuevo.')
+      }
     }
 
-    // ── PASO 2: Crear el pedido ──
+    // ── PASO 2: Crear el pedido ──────────────────────────────────────────────
     const { data: pedido, error: pedidoError } = await supabase
       .from('pedidos')
       .insert({
@@ -125,20 +129,20 @@ export function usePedidos() {
         estado: 'pendiente',
         genera_cupon: generaCupon,
         telefono_contacto: payload.telefono_contacto || null,
-        cupon_canjeado_id: payload.cuponId || null,
+        cupon_canjeado_id: cuponIds[0] || null,
       })
       .select()
       .single()
 
     if (pedidoError) {
-      // Si el pedido falla, restaurar todos los cupones canjeados
+      // Revertir: restaurar todos los cupones canjeados en este intento
       for (const cuponId of cuponIds) {
         await supabase.from('cupones').update({ estado: 'activo', fecha_canje: null }).eq('id', cuponId)
       }
       throw pedidoError
     }
 
-    // ── PASO 3: Insertar detalle del pedido ──
+    // ── PASO 3: Insertar detalle del pedido ──────────────────────────────────
     const detalle = payload.items.map((item) => ({
       pedido_id: pedido.id,
       producto_id: item.producto_id,
