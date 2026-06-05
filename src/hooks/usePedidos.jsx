@@ -32,6 +32,15 @@ function parseSlots(value) {
 }
 
 export function usePedidos() {
+  function parseUmbrales(val) {
+    try {
+      const arr = typeof val === 'string' ? JSON.parse(val) : val
+      if (Array.isArray(arr) && arr.length > 0)
+        return arr.map((e) => Array.isArray(e) ? e : [e.monto, e.valor]).sort((a, b) => a[0] - b[0])
+    } catch (_) {}
+    return [[150, 10]]
+  }
+
   async function getConfiguracion() {
     const { data, error } = await supabase.from('configuracion').select('clave, valor')
     if (error) throw error
@@ -43,7 +52,8 @@ export function usePedidos() {
       dias_vencimiento_cupon: Number(config.dias_vencimiento_cupon || 14),
       max_pedidos_manana:     Number(config.max_pedidos_manana     || 6),
       max_pedidos_tarde:      Number(config.max_pedidos_tarde      || 6),
-      slots_entrega: parseSlots(config.slots_entrega),
+      slots_entrega:          parseSlots(config.slots_entrega),
+      umbrales_cupones:       parseUmbrales(config.umbrales_cupones_domicilio),
     }
   }
 
@@ -82,7 +92,10 @@ export function usePedidos() {
     const totalBruto     = Number(payload.monto_total || 0)
     const descuentoCupon = payload.cuponId ? Number(payload.descuento_cupon || 0) : 0
     const totalFinal     = Math.max(totalBruto - descuentoCupon, 0)
-    const generaCupon    = Boolean(payload.cliente_id) && totalBruto >= config.monto_cupon_domicilio
+    // Determinar si califica para cupón según niveles configurados
+    const umbrales    = config.umbrales_cupones || [[config.monto_cupon_domicilio || 150, config.valor_cupon_domicilio || 10]]
+    const nivelCupon  = umbrales.reduce((acc, [min, val]) => totalBruto >= min ? val : acc, 0)
+    const generaCupon = Boolean(payload.cliente_id) && nivelCupon > 0
 
     // ── PASO 1: Marcar el cupón como canjeado ANTES de crear el pedido ──
     // Si falla (cupón ya canjeado o no existe), se lanza error y no se crea nada.

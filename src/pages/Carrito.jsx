@@ -16,6 +16,7 @@ export default function Carrito() {
   const [threshold, setThreshold] = useState(150)
   const [couponValue, setCouponValue] = useState(10)
   const [minAmount, setMinAmount] = useState(20)
+  const [umbrales, setUmbrales] = useState([[150, 10]])
   const [codigoInput, setCodigoInput] = useState('')
   const [cuponLoading, setCuponLoading] = useState(false)
   const [cuponError, setCuponError] = useState('')
@@ -30,14 +31,36 @@ export default function Carrito() {
         if (config.monto_cupon_domicilio)    setThreshold(Number(config.monto_cupon_domicilio))
         if (config.valor_cupon_domicilio)    setCouponValue(Number(config.valor_cupon_domicilio))
         if (config.monto_minimo_domicilio)   setMinAmount(Number(config.monto_minimo_domicilio))
+        try {
+          const raw = config.umbrales_cupones_domicilio
+          if (raw) {
+            const arr = typeof raw === 'string' ? JSON.parse(raw) : raw
+            if (Array.isArray(arr) && arr.length > 0) {
+              const parsed = arr.map((e) => Array.isArray(e) ? e : [e.monto, e.valor])
+              setUmbrales(parsed.sort((a, b) => a[0] - b[0]))
+              setThreshold(parsed[0][0])
+              setCouponValue(parsed[0][1])
+            }
+          }
+        } catch (_) {}
       })
   }, [])
 
-  const progress      = Math.min((totalMonto / threshold) * 100, 100)
-  const remaining     = Math.max(threshold - totalMonto, 0)
-  const qualifies     = totalMonto >= threshold
   const belowMinimum  = totalConDescuento < minAmount
   const faltaMinimo   = Math.max(minAmount - totalConDescuento, 0)
+
+  // Calcular nivel actual y siguiente nivel de cupón
+  const nivelActual = umbrales.filter(([min]) => totalMonto >= min).pop() || null
+  const siguienteNivel = umbrales.find(([min]) => totalMonto < min) || null
+  const cuponActualValor = nivelActual ? nivelActual[1] : 0
+  const siguienteMin = siguienteNivel ? siguienteNivel[0] : null
+  const siguienteValor = siguienteNivel ? siguienteNivel[1] : null
+  const faltaParaSiguiente = siguienteMin ? Math.max(siguienteMin - totalMonto, 0) : 0
+  const baseParaProgress = nivelActual ? nivelActual[0] : (umbrales[0]?.[0] || threshold)
+  const topeParaProgress = siguienteMin || baseParaProgress
+  const progress = siguienteMin
+    ? Math.min(((totalMonto - (nivelActual ? nivelActual[0] : 0)) / (siguienteMin - (nivelActual ? nivelActual[0] : 0))) * 100, 100)
+    : nivelActual ? 100 : Math.min((totalMonto / (umbrales[0]?.[0] || threshold)) * 100, 100)
 
   async function validarCupon(e) {
     e.preventDefault()
@@ -93,52 +116,70 @@ export default function Carrito() {
         </div>
       ) : (
         <>
-          {/* Barra de progreso hacia cupón */}
-          {qualifies ? (
+          {/* Barra de progreso escalonada hacia cupón */}
+          {nivelActual ? (
             <div style={{
               background: 'linear-gradient(135deg, #1D9E75, #14795a)',
-              borderRadius: 14,
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
+              borderRadius: 14, padding: '14px 16px',
               boxShadow: '0 4px 16px rgba(29,158,117,.35)',
             }}>
-              <div style={{ fontSize: 36, lineHeight: 1, flexShrink: 0 }}>🎟️</div>
-              <div>
-                <div style={{ color: 'white', fontWeight: 900, fontSize: 16, marginBottom: 2 }}>
-                  ¡Ganaste un cupón de {money(couponValue)}!
-                </div>
-                <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 13 }}>
-                  Te lo entregaremos junto con tu pedido.
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: siguienteNivel ? 10 : 0 }}>
+                <div style={{ fontSize: 36, lineHeight: 1, flexShrink: 0 }}>🎟️</div>
+                <div>
+                  <div style={{ color: 'white', fontWeight: 900, fontSize: 16 }}>
+                    ¡Ganaste un cupón de {money(cuponActualValor)}!
+                  </div>
+                  <div style={{ color: 'rgba(255,255,255,.82)', fontSize: 13 }}>
+                    Se entregará junto con tu pedido.
+                  </div>
                 </div>
               </div>
+              {siguienteNivel ? (
+                <>
+                  <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 12, marginBottom: 6 }}>
+                    ¡Agrega <strong style={{ color: '#ffd77a' }}>{money(faltaParaSiguiente)}</strong> más y mejora a un cupón de <strong style={{ color: '#ffd77a' }}>{money(siguienteValor)}</strong>
+                  </div>
+                  <div style={{ height: 8, background: 'rgba(255,255,255,.25)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #ffd77a, #ffb830)', borderRadius: 999, transition: 'width 0.5s ease' }} />
+                  </div>
+                </>
+              ) : null}
             </div>
           ) : (
             <div style={{
               background: 'linear-gradient(135deg, #fff8e7, #ffe9a0)',
               border: '2px solid var(--mall-accent)',
-              borderRadius: 14,
-              padding: '14px 16px',
+              borderRadius: 14, padding: '14px 16px',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>🎟️</div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 14, color: '#4a3200' }}>
-                    ¡Agrega {money(remaining)} más y gana un cupón de {money(couponValue)}!
+                    ¡Agrega <strong>{money(faltaParaSiguiente || 0)}</strong> más y gana un cupón de <strong>{money(siguienteValor || couponValue)}</strong>!
                   </div>
                   <div style={{ fontSize: 12, color: '#8a6200', marginTop: 2 }}>
-                    Progreso: {money(totalMonto)} / {money(threshold)}
+                    Progreso: {money(totalMonto)} / {money(siguienteMin || threshold)}
                   </div>
                 </div>
               </div>
+              {umbrales.length > 1 ? (
+                <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                  {umbrales.map(([min, val]) => (
+                    <span key={min} style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 999, fontWeight: 700,
+                      background: totalMonto >= min ? '#1D9E75' : 'rgba(255,255,255,.6)',
+                      color: totalMonto >= min ? 'white' : '#8a6200',
+                    }}>
+                      Q{min}→{money(val)}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
               <div style={{ height: 10, background: 'rgba(255,255,255,.6)', borderRadius: 999, overflow: 'hidden' }}>
                 <div style={{
-                  height: '100%',
-                  width: `${progress}%`,
+                  height: '100%', width: `${progress}%`,
                   background: 'linear-gradient(90deg, #EF9F27, #f5b942)',
-                  borderRadius: 999,
-                  transition: 'width 0.5s ease',
+                  borderRadius: 999, transition: 'width 0.5s ease',
                   boxShadow: '0 2px 8px rgba(239,159,39,.5)',
                 }} />
               </div>
