@@ -1,9 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CheckCircle2, MessageCircle, Phone, Plus, Search, Ticket } from 'lucide-react'
+import { CheckCircle2, MessageCircle, Package, Phone, Plus, Search, Ticket } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 import { useCatalogo } from '../hooks/useCatalogo.jsx'
+import { supabase } from '../supabase.js'
 import { money } from '../utils/format.js'
+
+const ESTADO_LABEL = {
+  pendiente:  { label: 'Pendiente',  color: '#87510b', bg: '#fff1d7' },
+  confirmado: { label: 'Confirmado', color: '#0f6e56', bg: '#dff7ed' },
+  preparando: { label: 'Preparando', color: '#1a5fa8', bg: '#dbeafe' },
+  en_camino:  { label: 'En camino',  color: '#5b21b6', bg: '#ede9fe' },
+  entregado:  { label: 'Entregado',  color: '#166534', bg: '#dcfce7' },
+  cancelado:  { label: 'Cancelado',  color: '#6b7280', bg: '#f3f4f6' },
+}
 
 export default function Catalogo() {
   const navigate = useNavigate()
@@ -12,6 +22,24 @@ export default function Catalogo() {
   const [query, setQuery] = useState('')
   const [categoria, setCategoria] = useState('Todos')
   const [cartToast, setCartToast] = useState(null)
+  const [misPedidos, setMisPedidos] = useState([])
+
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem('mall_mis_pedidos') || '[]')
+    if (stored.length === 0) return
+    const hoy = new Date().toISOString().slice(0, 10)
+    const activos = stored.filter((p) => (p.fecha || hoy) >= hoy)
+    if (activos.length === 0) return
+    supabase.from('pedidos').select('id, estado').in('id', activos.map((p) => p.id)).then(({ data }) => {
+      if (!data) return
+      const statusMap = Object.fromEntries(data.map((p) => [p.id, p.estado]))
+      const conEstado = activos
+        .filter((p) => statusMap[p.id] && !['entregado', 'cancelado'].includes(statusMap[p.id]))
+        .map((p) => ({ ...p, estado: statusMap[p.id] }))
+        .sort((a, b) => (a.fecha || hoy).localeCompare(b.fecha || hoy) || (a.horario || '').localeCompare(b.horario || ''))
+      setMisPedidos(conEstado)
+    })
+  }, [])
 
   const filteredProducts = useMemo(() => {
     return productos.filter((producto) => {
@@ -54,6 +82,35 @@ export default function Catalogo() {
           )}
         </div>
       </section>
+
+      {/* Mis pedidos activos en este dispositivo */}
+      {misPedidos.length > 0 ? (
+        <section className="card" style={{ display: 'grid', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Package size={17} style={{ color: 'var(--mall-main)' }} />
+            <strong style={{ fontSize: 14 }}>Tus pedidos activos</strong>
+          </div>
+          {misPedidos.map((p) => {
+            const hoy = new Date().toISOString().slice(0, 10)
+            const esMismoDia = (p.fecha || hoy) === hoy
+            const fechaLabel = esMismoDia ? 'Hoy' : new Date(p.fecha + 'T12:00:00').toLocaleDateString('es-GT', { weekday: 'short', day: 'numeric', month: 'short' })
+            const estadoInfo = ESTADO_LABEL[p.estado] || ESTADO_LABEL.pendiente
+            return (
+              <div key={p.id} role="button"
+                onClick={() => navigate('/mi-pedido', { state: { numeroInicial: p.numero } })}
+                style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--mall-line)' }}>
+                <div>
+                  <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 15, letterSpacing: 2 }}>{p.numero}</div>
+                  <div className="muted" style={{ fontSize: 12 }}>{fechaLabel} · {p.horario} · {money(p.total)}</div>
+                </div>
+                <span style={{ background: estadoInfo.bg, color: estadoInfo.color, borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                  {estadoInfo.label}
+                </span>
+              </div>
+            )
+          })}
+        </section>
+      ) : null}
 
       {/* Contacto con la tienda */}
       <section className="card" style={{ background: 'linear-gradient(135deg, #f0faf6, #e1f5ee)', border: '1.5px solid var(--mall-line)' }}>

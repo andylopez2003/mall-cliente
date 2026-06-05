@@ -31,6 +31,7 @@ export default function HacerPedido() {
   const [error, setError] = useState('')
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [cuponThreshold, setCuponThreshold] = useState(150)
+  const [fechaEntrega, setFechaEntrega] = useState(() => new Date().toISOString().slice(0, 10))
 
   useEffect(() => {
     getConfiguracion().then((c) => setCuponThreshold(c.monto_cupon_domicilio)).catch(() => {})
@@ -43,13 +44,14 @@ export default function HacerPedido() {
 
   if (items.length === 0) return <Navigate to="/" replace />
 
-  async function refreshSlots() {
+  async function refreshSlots(fecha = fechaEntrega) {
     setLoadingSlots(true)
+    setJornadas([])
+    setJornadaSeleccionada(null)
+    setSlot('')
     try {
-      const data = await slotsConDisponibilidad()
+      const data = await slotsConDisponibilidad(fecha)
       setJornadas(data)
-      setJornadaSeleccionada(null)
-      setSlot('')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -72,7 +74,7 @@ export default function HacerPedido() {
         setError('Completa nombre, teléfono y dirección.')
         return
       }
-      await refreshSlots()
+      await refreshSlots(fechaEntrega)
     }
     if (step === 3 && !slot) { setError('Elige un turno de entrega.'); return }
     setStep((current) => Math.min(4, current + 1))
@@ -119,6 +121,7 @@ export default function HacerPedido() {
         direccion_entrega: direccion.trim(),
         horario: slot,
         hora_entrega_asignada: slot,
+        fecha_entrega: fechaEntrega,
         monto_total: totalMonto,
         descuento_cupones: descuentoTotal,
         cuponIds: cuponIds,
@@ -131,17 +134,32 @@ export default function HacerPedido() {
         })),
       })
 
-      limpiarCarrito()
+      // Guardar pedido en localStorage para mostrarlo en el inicio
+      try {
+        const guardados = JSON.parse(localStorage.getItem('mall_mis_pedidos') || '[]')
+        guardados.unshift({
+          id: pedido.id,
+          numero: pedido.id.slice(0, 8).toUpperCase(),
+          fecha: fechaEntrega,
+          horario: slot,
+          total: totalConDescuento,
+        })
+        localStorage.setItem('mall_mis_pedidos', JSON.stringify(guardados.slice(0, 10)))
+      } catch (_) {}
+
+      // Navegar ANTES de limpiar el carrito para evitar que el guard <Navigate to="/"> bloquee la confirmación
       navigate('/pedido/confirmacion', {
         state: {
           pedidoId: pedido.id,
           total: totalConDescuento,
           horario: slot,
+          fecha: fechaEntrega,
           descuentoCupones: descuentoTotal,
           numCupones: cuponesAplicados.length,
           generaCupon,
         },
       })
+      limpiarCarrito()
     } catch (err) {
       setError(err.message)
     }
@@ -226,14 +244,35 @@ export default function HacerPedido() {
       {step === 3 ? (
         <section className="card grid">
           <h2 className="font-display" style={{ margin: 0 }}>Horario de entrega</h2>
+
+          {/* Selector de fecha */}
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: 'var(--mall-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Día de entrega</div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+              {Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(); d.setDate(d.getDate() + i)
+                const f = d.toISOString().slice(0, 10)
+                const label = i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : d.toLocaleDateString('es-GT', { weekday: 'short', day: 'numeric' })
+                return (
+                  <button key={f} type="button"
+                    className={fechaEntrega === f ? 'btn-primary' : 'btn-outline'}
+                    style={{ whiteSpace: 'nowrap', padding: '8px 14px', minHeight: 40, fontSize: 13, flexShrink: 0 }}
+                    onClick={() => { setFechaEntrega(f); refreshSlots(f) }}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           {loadingSlots ? <div className="muted" style={{ fontSize: 13 }}>Consultando disponibilidad...</div> : null}
 
           {!loadingSlots && jornadas.length > 0 && !haySlots ? (
             <div className="sin-slots-card">
               <div style={{ fontSize: 44 }}>😔</div>
-              <strong style={{ fontSize: 16 }}>No hay turnos disponibles hoy</strong>
-              <p className="muted" style={{ margin: 0, fontSize: 14 }}>Los turnos se recargarán mañana. Pedimos disculpas por la demora.</p>
-              <p className="muted" style={{ margin: 0, fontSize: 14 }}>Si necesitas tu pedido hoy, contáctanos:</p>
+              <strong style={{ fontSize: 16 }}>No hay turnos disponibles para este día</strong>
+              <p className="muted" style={{ margin: 0, fontSize: 14 }}>Elige otro día usando los botones de arriba, o contáctanos:</p>
               <a href="tel:33921737" className="btn-accent" style={{ textDecoration: 'none', justifySelf: 'center' }}>
                 <Phone size={16} /> 33921737
               </a>
@@ -296,6 +335,7 @@ export default function HacerPedido() {
             <div><span className="muted">Nombre: </span><strong>{nombre}</strong></div>
             <div><span className="muted">Teléfono: </span><strong>{telefono}</strong></div>
             <div><span className="muted">Dirección: </span><strong>{direccion}</strong></div>
+            <div><span className="muted">Fecha: </span><strong>{new Date(fechaEntrega + 'T12:00:00').toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' })}</strong></div>
             <div><span className="muted">Horario: </span><strong>{slot} – {addTwenty(slot)}</strong></div>
             {cuponesAplicados.map((c) => (
               <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--mall-main)', fontWeight: 700, fontSize: 13 }}>

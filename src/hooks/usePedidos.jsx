@@ -55,18 +55,33 @@ export function usePedidos() {
     }
   }
 
-  async function slotsConDisponibilidad() {
+  async function slotsConDisponibilidad(fecha = null) {
     const config = await getConfiguracion()
     const hoy = new Date().toISOString().slice(0, 10)
-    const { data: pedidosHoy, error } = await supabase
-      .from('pedidos')
-      .select('horario,hora_entrega_asignada')
-      .gte('created_at', `${hoy}T00:00:00`)
-      .lte('created_at', `${hoy}T23:59:59`)
-      .neq('estado', 'cancelado')
-    if (error) throw error
+    const targetDate = fecha || hoy
 
-    const counts = (pedidosHoy || []).reduce((acc, p) => {
+    // Pedidos asignados a esta fecha (via campo fecha_entrega)
+    let pedidosData = []
+    const { data: byFecha } = await supabase
+      .from('pedidos')
+      .select('horario, hora_entrega_asignada')
+      .eq('fecha_entrega', targetDate)
+      .neq('estado', 'cancelado')
+    if (byFecha) pedidosData = [...byFecha]
+
+    // Para hoy: también incluir pedidos sin fecha_entrega (creados antes de la migración)
+    if (targetDate === hoy) {
+      const { data: byCreated } = await supabase
+        .from('pedidos')
+        .select('horario, hora_entrega_asignada')
+        .gte('created_at', `${hoy}T00:00:00`)
+        .lte('created_at', `${hoy}T23:59:59`)
+        .is('fecha_entrega', null)
+        .neq('estado', 'cancelado')
+      if (byCreated) pedidosData = [...pedidosData, ...byCreated]
+    }
+
+    const counts = pedidosData.reduce((acc, p) => {
       const slot = String(p.hora_entrega_asignada || p.horario || '').slice(0, 5)
       if (slot) acc[slot] = (acc[slot] || 0) + 1
       return acc
@@ -74,10 +89,11 @@ export function usePedidos() {
 
     const all = config.slots_entrega
     function buildJornada(nombre, rango, slots) {
-      const info = slots.map((hora) => {
-        const max = Number(hora.slice(0, 2)) < 15 ? config.max_pedidos_manana : config.max_pedidos_tarde
-        return { hora, disponible: (counts[hora] || 0) < max }
-      })
+      // Cada turno de 20 min admite máximo 1 pedido
+      const info = slots.map((hora) => ({
+        hora,
+        disponible: (counts[hora] || 0) === 0,
+      }))
       return { nombre, rango, slots: info, disponibles: info.filter((s) => s.disponible).length }
     }
     return [
@@ -125,6 +141,7 @@ export function usePedidos() {
         longitud: payload.longitud || null,
         horario: payload.horario,
         hora_entrega_asignada: payload.hora_entrega_asignada,
+        fecha_entrega: payload.fecha_entrega || new Date().toISOString().slice(0, 10),
         monto_total: totalFinal,
         estado: 'pendiente',
         genera_cupon: generaCupon,
