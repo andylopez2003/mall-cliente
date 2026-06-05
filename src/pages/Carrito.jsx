@@ -49,18 +49,11 @@ export default function Carrito() {
   const belowMinimum  = totalConDescuento < minAmount
   const faltaMinimo   = Math.max(minAmount - totalConDescuento, 0)
 
-  // Calcular nivel actual y siguiente nivel de cupón
-  const nivelActual = umbrales.filter(([min]) => totalMonto >= min).pop() || null
-  const siguienteNivel = umbrales.find(([min]) => totalMonto < min) || null
-  const cuponActualValor = nivelActual ? nivelActual[1] : 0
-  const siguienteMin = siguienteNivel ? siguienteNivel[0] : null
-  const siguienteValor = siguienteNivel ? siguienteNivel[1] : null
-  const faltaParaSiguiente = siguienteMin ? Math.max(siguienteMin - totalMonto, 0) : 0
-  const baseParaProgress = nivelActual ? nivelActual[0] : (umbrales[0]?.[0] || threshold)
-  const topeParaProgress = siguienteMin || baseParaProgress
-  const progress = siguienteMin
-    ? Math.min(((totalMonto - (nivelActual ? nivelActual[0] : 0)) / (siguienteMin - (nivelActual ? nivelActual[0] : 0))) * 100, 100)
-    : nivelActual ? 100 : Math.min((totalMonto / (umbrales[0]?.[0] || threshold)) * 100, 100)
+  // Barras apiladas: 1 cupón por cada múltiplo del umbral
+  const cuponesGanados         = threshold > 0 ? Math.floor(totalMonto / threshold) : 0
+  const progressHaciaSiguiente = threshold > 0 ? Math.min(((totalMonto % threshold) / threshold) * 100, 100) : 0
+  const faltaParaSiguiente     = threshold > 0 ? Math.max(threshold - (totalMonto % threshold || threshold), 0) : 0
+  const maxNivelesAMostrar     = Math.min(cuponesGanados + 1, 5)
 
   async function validarCupon(e) {
     e.preventDefault()
@@ -116,75 +109,68 @@ export default function Carrito() {
         </div>
       ) : (
         <>
-          {/* Barra de progreso escalonada hacia cupón */}
-          {nivelActual ? (
-            <div style={{
-              background: 'linear-gradient(135deg, #1D9E75, #14795a)',
-              borderRadius: 14, padding: '14px 16px',
-              boxShadow: '0 4px 16px rgba(29,158,117,.35)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: siguienteNivel ? 10 : 0 }}>
-                <div style={{ fontSize: 36, lineHeight: 1, flexShrink: 0 }}>🎟️</div>
-                <div>
-                  <div style={{ color: 'white', fontWeight: 900, fontSize: 16 }}>
-                    ¡Ganaste un cupón de {money(cuponActualValor)}!
+          {/* Barras apiladas: una por cada nivel de cupón */}
+          <div style={{ display: 'grid', gap: 8 }}>
+            {Array.from({ length: maxNivelesAMostrar }, (_, i) => {
+              const nivel = i + 1
+              const ganado = cuponesGanados >= nivel
+
+              if (ganado) {
+                return (
+                  <div key={nivel} style={{
+                    background: 'linear-gradient(135deg, #1D9E75, #14795a)',
+                    borderRadius: 12, padding: '12px 16px',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    boxShadow: '0 3px 12px rgba(29,158,117,.3)',
+                  }}>
+                    <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>🎟️</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: 'white', fontWeight: 900, fontSize: 15 }}>
+                        ¡Cupón #{nivel} obtenido!
+                      </div>
+                      <div style={{ color: 'rgba(255,255,255,.82)', fontSize: 12 }}>
+                        {money(couponValue)} de descuento · se entrega con tu pedido
+                      </div>
+                    </div>
+                    <span style={{ background: 'rgba(255,255,255,.25)', borderRadius: 999, padding: '3px 10px', color: 'white', fontWeight: 900, fontSize: 16 }}>✓</span>
                   </div>
-                  <div style={{ color: 'rgba(255,255,255,.82)', fontSize: 13 }}>
-                    Se entregará junto con tu pedido.
+                )
+              }
+
+              // Nivel en progreso (siguiente a ganar)
+              const progresoTexto = cuponesGanados > 0
+                ? `${money(totalMonto % threshold || 0)} / ${money(threshold)}`
+                : `${money(totalMonto)} / ${money(threshold)}`
+
+              return (
+                <div key={nivel} style={{
+                  background: 'linear-gradient(135deg, #fff8e7, #ffe9a0)',
+                  border: '2px solid var(--mall-accent)',
+                  borderRadius: 12, padding: '12px 16px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <div style={{ fontSize: 26, flexShrink: 0 }}>🎟️</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: '#4a3200' }}>
+                        Cupón #{nivel} — te faltan <strong>{money(faltaParaSiguiente)}</strong>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#8a6200', marginTop: 1 }}>
+                        {progresoTexto} para ganar {money(couponValue)}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ height: 10, background: 'rgba(255,255,255,.6)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', width: `${progressHaciaSiguiente}%`,
+                      background: 'linear-gradient(90deg, #EF9F27, #f5b942)',
+                      borderRadius: 999, transition: 'width 0.5s ease',
+                      boxShadow: '0 2px 8px rgba(239,159,39,.4)',
+                    }} />
                   </div>
                 </div>
-              </div>
-              {siguienteNivel ? (
-                <>
-                  <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 12, marginBottom: 6 }}>
-                    ¡Agrega <strong style={{ color: '#ffd77a' }}>{money(faltaParaSiguiente)}</strong> más y mejora a un cupón de <strong style={{ color: '#ffd77a' }}>{money(siguienteValor)}</strong>
-                  </div>
-                  <div style={{ height: 8, background: 'rgba(255,255,255,.25)', borderRadius: 999, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${progress}%`, background: 'linear-gradient(90deg, #ffd77a, #ffb830)', borderRadius: 999, transition: 'width 0.5s ease' }} />
-                  </div>
-                </>
-              ) : null}
-            </div>
-          ) : (
-            <div style={{
-              background: 'linear-gradient(135deg, #fff8e7, #ffe9a0)',
-              border: '2px solid var(--mall-accent)',
-              borderRadius: 14, padding: '14px 16px',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                <div style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>🎟️</div>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 14, color: '#4a3200' }}>
-                    ¡Agrega <strong>{money(faltaParaSiguiente || 0)}</strong> más y gana un cupón de <strong>{money(siguienteValor || couponValue)}</strong>!
-                  </div>
-                  <div style={{ fontSize: 12, color: '#8a6200', marginTop: 2 }}>
-                    Progreso: {money(totalMonto)} / {money(siguienteMin || threshold)}
-                  </div>
-                </div>
-              </div>
-              {umbrales.length > 1 ? (
-                <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                  {umbrales.map(([min, val]) => (
-                    <span key={min} style={{
-                      fontSize: 11, padding: '2px 8px', borderRadius: 999, fontWeight: 700,
-                      background: totalMonto >= min ? '#1D9E75' : 'rgba(255,255,255,.6)',
-                      color: totalMonto >= min ? 'white' : '#8a6200',
-                    }}>
-                      Q{min}→{money(val)}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              <div style={{ height: 10, background: 'rgba(255,255,255,.6)', borderRadius: 999, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', width: `${progress}%`,
-                  background: 'linear-gradient(90deg, #EF9F27, #f5b942)',
-                  borderRadius: 999, transition: 'width 0.5s ease',
-                  boxShadow: '0 2px 8px rgba(239,159,39,.5)',
-                }} />
-              </div>
-            </div>
-          )}
+              )
+            })}
+          </div>
 
           {/* Productos */}
           <section className="card">
