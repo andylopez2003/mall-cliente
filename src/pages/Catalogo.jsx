@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CheckCircle2, ChevronRight, MessageCircle, Phone, Plus, Search, Ticket } from 'lucide-react'
+import { CheckCircle2, MessageCircle, Phone, Plus, Search, Ticket } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 import { useCatalogo } from '../hooks/useCatalogo.jsx'
 import { money } from '../utils/format.js'
@@ -80,21 +80,13 @@ export default function Catalogo() {
         </div>
       </section>
 
-      <button type="button" className="coupon-promo" onClick={() => navigate('/mis-cupones')}>
-        <span className="coupon-promo-icon">🎟️</span>
-        <div className="coupon-promo-text">
-          <strong>¿Tienes cupones de descuento?</strong>
-          <span>Consúltalos aquí y preséntalos en tienda para ahorrar</span>
-        </div>
-        <ChevronRight size={18} style={{ flexShrink: 0, color: 'var(--mall-accent)' }} />
-      </button>
 
       <section className="card" style={{ background: 'linear-gradient(135deg, #ffefb7, #f7c85a)' }}>
         <strong style={{ display: 'block', marginBottom: 4 }}>
           <Ticket size={16} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
           Gana Q10 de regalo
         </strong>
-        <span style={{ fontSize: 13 }}>En pedidos de Q150 o más, agrega tu teléfono al confirmar y recibirás un cupón para canjear en tienda.</span>
+        <span style={{ fontSize: 13 }}>En pedidos de Q150 o más recibirás un cupón de descuento que te entregaremos junto con tu pedido.</span>
       </section>
 
       {ofertas.length > 0 ? (

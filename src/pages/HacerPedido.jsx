@@ -38,7 +38,7 @@ export default function HacerPedido() {
 
   const haySlots = jornadas.some((j) => j.disponibles > 0)
   const validItems = useMemo(() => (catalogoLoading ? items : validateCart(items)), [items, validateCart, catalogoLoading])
-  const generaraCupon = totalMonto >= cuponThreshold && telefono.trim().length > 0
+  const generaraCupon = totalMonto >= cuponThreshold
 
   if (items.length === 0) return <Navigate to="/" replace />
 
@@ -201,7 +201,7 @@ export default function HacerPedido() {
           <details style={{ cursor: 'pointer' }} open={usarDpi} onClick={(e) => { e.preventDefault(); setUsarDpi(!usarDpi) }}>
             <summary style={{ fontWeight: 700, color: 'var(--mall-dark)', userSelect: 'none' }}>
               <ShieldCheck size={15} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
-              Agregar DPI (opcional, para cupones)
+              Agregar DPI (opcional, para acumular puntos)
             </summary>
           </details>
           {usarDpi ? (
@@ -299,7 +299,7 @@ export default function HacerPedido() {
           {generaraCupon ? (
             <div className="card" style={{ background: '#fff5d9', padding: 12, fontSize: 13 }}>
               <Ticket size={14} style={{ verticalAlign: 'text-bottom', marginRight: 4 }} />
-              Este pedido generará un cupón de descuento cuando sea entregado.
+              Este pedido generará un cupón de descuento que te entregaremos junto con tu pedido.
             </div>
           ) : null}
           <button className="btn-accent" type="button" onClick={submit}>Confirmar pedido</button>

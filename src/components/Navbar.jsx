@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Home, MessageCircle, Package, ShoppingCart, Ticket } from 'lucide-react'
+import { Home, MessageCircle, Package, ShoppingCart, Star } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 
 const links = [
-  { to: '/',            label: 'Inicio',    icon: Home },
-  { to: '/mis-cupones', label: 'Cupones',   icon: Ticket },
-  { to: '/carrito',     label: 'Carrito',   icon: ShoppingCart },
-  { to: '/mi-pedido',   label: 'Mi Pedido', icon: Package },
+  { to: '/',           label: 'Inicio',    icon: Home },
+  { to: '/mis-puntos', label: 'Puntos',    icon: Star },
+  { to: '/carrito',    label: 'Carrito',   icon: ShoppingCart },
+  { to: '/mi-pedido',  label: 'Mi Pedido', icon: Package },
 ]
 
 export default function Navbar({ children }) {
