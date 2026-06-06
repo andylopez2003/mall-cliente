@@ -38,7 +38,7 @@ export default function MiPedido() {
     const { data, error: err } = await supabase
       .from('pedidos')
       .select('*, detalle_pedidos(*)')
-      .like('id', `${num}%`)
+      .filter('id::text', 'ilike', `${num.toLowerCase()}%`)
       .in('estado', ['pendiente', 'confirmado', 'preparando', 'en_camino'])
       .order('created_at', { ascending: false })
 
