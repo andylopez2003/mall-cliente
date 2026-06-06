@@ -38,12 +38,12 @@ export default function MiPedido() {
     const { data, error: err } = await supabase
       .from('pedidos')
       .select('*, detalle_pedidos(*)')
-      .filter('id::text', 'ilike', `${num.toLowerCase()}%`)
       .in('estado', ['pendiente', 'confirmado', 'preparando', 'en_camino'])
       .order('created_at', { ascending: false })
 
     if (err) { setError(err.message); setLoading(false); return }
-    setPedidos(data || [])
+    const coincidentes = (data || []).filter((p) => p.id.toLowerCase().startsWith(num))
+    setPedidos(coincidentes)
     setBuscado(true)
     setLoading(false)
   }
