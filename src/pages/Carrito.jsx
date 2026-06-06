@@ -74,9 +74,6 @@ export default function Carrito() {
     if (data.estado === 'canjeado') {
       setCuponLoading(false); setCuponError('Este cupón ya fue utilizado y no puede volver a usarse.'); return
     }
-    if (data.estado === 'canjeado') {
-      setCuponLoading(false); setCuponError('Este cupón ya fue utilizado y no puede volver a usarse.'); return
-    }
     if (data.estado === 'vencido' || new Date(data.fecha_vencimiento) < new Date()) {
       setCuponLoading(false); setCuponError('Este cupón ha vencido.'); return
     }

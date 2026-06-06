@@ -81,11 +81,16 @@ export default function ConfirmacionPedido() {
             <strong style={{ color: 'var(--mall-main)' }}>−{money(state.descuentoCupones)}</strong>
           </div>
         ) : null}
-        {/* Backwards compat con el campo viejo */}
         {!state.descuentoCupones && state.cuponAplicado > 0 ? (
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span className="muted">Cupón aplicado</span>
             <strong style={{ color: 'var(--mall-main)' }}>−{money(state.cuponAplicado)}</strong>
+          </div>
+        ) : null}
+        {state.fecha ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span className="muted">Fecha de entrega</span>
+            <strong>{new Date(state.fecha + 'T12:00:00').toLocaleDateString('es-GT', { weekday: 'long', day: 'numeric', month: 'long' })}</strong>
           </div>
         ) : null}
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
