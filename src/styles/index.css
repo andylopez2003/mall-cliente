@@ -14,6 +14,7 @@
 }
 
 * { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
 body { margin: 0; min-width: 320px; background: var(--mall-light); }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
@@ -41,7 +42,7 @@ img { max-width: 100%; display: block; }
 /* ── Content ─────────────────────────────────────── */
 .content {
   padding: 14px 14px calc(72px + env(safe-area-inset-bottom, 0px));
-  max-width: 960px; width: 100%; margin: 0 auto; flex: 1;
+  max-width: 960px; width: 100%; margin: 0 auto; flex: 1; overflow-x: hidden;
 }
 
 /* ── Bottom nav ──────────────────────────────────── */
