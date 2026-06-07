@@ -254,39 +254,39 @@ button:disabled { opacity: 0.42; cursor: not-allowed; }
 }
 
 /* ── Jornada picker ──────────────────────────────── */
-.jornada-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.jornada-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .jornada-card {
-  background: white; border: 2px solid var(--mall-line); border-radius: 12px;
-  padding: 18px 10px; display: grid; gap: 6px; text-align: center;
+  background: white; border: 2px solid var(--mall-line); border-radius: 10px;
+  padding: 12px 8px; display: grid; gap: 4px; text-align: center;
   cursor: pointer; font-weight: 700; transition: border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 .jornada-card:not(:disabled):hover  { border-color: var(--mall-main); }
 .jornada-card:not(:disabled):active { transform: scale(0.97); }
 .jornada-card:disabled { opacity: 0.5; cursor: not-allowed; }
-.jornada-icono { font-size: 32px; }
-.jornada-rango { font-size: 12px; color: var(--mall-muted); font-weight: 400; margin-top: 2px; }
+.jornada-icono { font-size: 22px; }
+.jornada-rango { font-size: 11px; color: var(--mall-muted); font-weight: 400; }
 
 /* ── Slot picker ─────────────────────────────────── */
-.slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .slot-btn {
-  border: 2px solid var(--mall-line); border-radius: 10px; background: white;
-  padding: 10px 4px; display: grid; gap: 3px; text-align: center;
-  cursor: pointer; min-height: 62px; transition: border-color 0.15s;
+  border: 2px solid var(--mall-line); border-radius: 8px; background: white;
+  padding: 8px 4px; display: grid; gap: 2px; text-align: center;
+  cursor: pointer; min-height: 52px; transition: border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 .slot-btn:not(:disabled):hover { border-color: var(--mall-main); }
 .slot-btn-selected { border-color: var(--mall-main) !important; background: var(--mall-light); }
 .slot-btn:disabled { opacity: 0.38; cursor: not-allowed; }
-.slot-hora  { font-weight: 800; font-size: 15px; }
-.slot-label { font-size: 10px; color: var(--mall-muted); }
+.slot-hora  { font-weight: 800; font-size: 13px; }
+.slot-label { font-size: 9px; color: var(--mall-muted); }
 .slot-btn-selected .slot-label { color: var(--mall-main); font-weight: 700; }
 
 /* ── No-slots card ───────────────────────────────── */
 .sin-slots-card {
   background: #fff9f9; border: 1px solid #f8d0d0;
-  border-radius: 12px; padding: 26px 16px;
-  text-align: center; display: grid; gap: 12px;
+  border-radius: 12px; padding: 18px 14px;
+  text-align: center; display: grid; gap: 10px;
 }
 
 /* ── Table ───────────────────────────────────────── */

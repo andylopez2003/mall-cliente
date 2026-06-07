@@ -242,13 +242,13 @@ export default function HacerPedido() {
 
       {/* ── Paso 3: Horario ── */}
       {step === 3 ? (
-        <section className="card grid">
-          <h2 className="font-display" style={{ margin: 0 }}>Horario de entrega</h2>
+        <section className="card grid" style={{ gap: 10 }}>
+          <h2 className="font-display" style={{ margin: 0, fontSize: 17 }}>Horario de entrega</h2>
 
           {/* Selector de fecha */}
           <div>
-            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: 'var(--mall-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Día de entrega</div>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+            <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 6, color: 'var(--mall-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Día de entrega</div>
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
               {Array.from({ length: 7 }, (_, i) => {
                 const d = new Date(); d.setDate(d.getDate() + i)
                 const f = d.toISOString().slice(0, 10)
@@ -256,7 +256,7 @@ export default function HacerPedido() {
                 return (
                   <button key={f} type="button"
                     className={fechaEntrega === f ? 'btn-primary' : 'btn-outline'}
-                    style={{ whiteSpace: 'nowrap', padding: '8px 14px', minHeight: 40, fontSize: 13, flexShrink: 0 }}
+                    style={{ whiteSpace: 'nowrap', padding: '6px 10px', minHeight: 34, fontSize: 12, flexShrink: 0 }}
                     onClick={() => { setFechaEntrega(f); refreshSlots(f) }}
                   >
                     {label}
@@ -297,8 +297,8 @@ export default function HacerPedido() {
           ) : null}
 
           {!loadingSlots && haySlots && !jornadaSeleccionada ? (
-            <div className="grid" style={{ gap: 10 }}>
-              <p className="muted" style={{ margin: 0, fontSize: 13 }}>Elige la jornada en que quieres recibir tu pedido:</p>
+            <div className="grid" style={{ gap: 8 }}>
+              <p className="muted" style={{ margin: 0, fontSize: 12 }}>Elige la jornada:</p>
               <div className="jornada-grid">
                 {jornadas.map((j) => (
                   <button key={j.nombre} type="button" className="jornada-card" disabled={j.disponibles === 0}
@@ -316,8 +316,8 @@ export default function HacerPedido() {
           ) : null}
 
           {!loadingSlots && jornadaSeleccionada ? (
-            <div className="grid" style={{ gap: 12 }}>
-              <button className="btn-outline" type="button" style={{ width: 'fit-content', fontSize: 13 }}
+            <div className="grid" style={{ gap: 8 }}>
+              <button className="btn-outline" type="button" style={{ width: 'fit-content', fontSize: 12, minHeight: 34, padding: '6px 10px' }}
                 onClick={() => { setJornadaSeleccionada(null); setSlot('') }}>
                 <ArrowLeft size={14} /> Cambiar jornada
               </button>
