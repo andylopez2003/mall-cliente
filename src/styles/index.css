@@ -254,31 +254,32 @@ button:disabled { opacity: 0.42; cursor: not-allowed; }
 }
 
 /* ── Jornada picker ──────────────────────────────── */
-.jornada-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.jornada-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
 .jornada-card {
   background: white; border: 2px solid var(--mall-line); border-radius: 10px;
-  padding: 12px 8px; display: grid; gap: 4px; text-align: center;
-  cursor: pointer; font-weight: 700; transition: border-color 0.15s;
+  padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+  cursor: pointer; font-weight: 700; transition: border-color 0.15s; text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
 .jornada-card:not(:disabled):hover  { border-color: var(--mall-main); }
-.jornada-card:not(:disabled):active { transform: scale(0.97); }
+.jornada-card:not(:disabled):active { transform: scale(0.98); }
 .jornada-card:disabled { opacity: 0.5; cursor: not-allowed; }
-.jornada-icono { font-size: 22px; }
+.jornada-icono { font-size: 22px; flex-shrink: 0; }
+.jornada-info  { flex: 1; display: grid; gap: 1px; }
 .jornada-rango { font-size: 11px; color: var(--mall-muted); font-weight: 400; }
 
 /* ── Slot picker ─────────────────────────────────── */
-.slot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.slot-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .slot-btn {
   border: 2px solid var(--mall-line); border-radius: 8px; background: white;
-  padding: 8px 4px; display: grid; gap: 2px; text-align: center;
-  cursor: pointer; min-height: 52px; transition: border-color 0.15s;
+  padding: 6px 2px; display: grid; gap: 1px; text-align: center;
+  cursor: pointer; min-height: 44px; transition: border-color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 .slot-btn:not(:disabled):hover { border-color: var(--mall-main); }
 .slot-btn-selected { border-color: var(--mall-main) !important; background: var(--mall-light); }
 .slot-btn:disabled { opacity: 0.38; cursor: not-allowed; }
-.slot-hora  { font-weight: 800; font-size: 13px; }
+.slot-hora  { font-weight: 800; font-size: 12px; }
 .slot-label { font-size: 9px; color: var(--mall-muted); }
 .slot-btn-selected .slot-label { color: var(--mall-main); font-weight: 700; }
 

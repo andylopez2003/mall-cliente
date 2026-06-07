@@ -303,17 +303,15 @@ export default function HacerPedido() {
                 {jornadas.map((j) => (
                   <button key={j.nombre} type="button" className="jornada-card" disabled={j.disponibles === 0}
                     onClick={() => { setJornadaSeleccionada(j); setSlot('') }}>
-                    <span className="jornada-icono">{j.nombre === 'Medio Dia' ? '🌤️' : '🌙'}</span>
-                    <strong>{j.nombre}</strong>
-                    <span className="jornada-rango">{j.rango}</span>
+                    <span className="jornada-icono">{j.nombre === 'Mañana' ? '🌤️' : '🌙'}</span>
+                    <div className="jornada-info">
+                      <strong>{j.nombre}</strong>
+                      <span className="jornada-rango">{j.rango}</span>
+                    </div>
                     <span className={j.disponibles > 0 ? 'badge-green' : 'badge-red'}>
-                      {j.disponibles > 0 ? `${j.disponibles} turnos libres` : 'Sin turnos'}
+                      {j.disponibles > 0 ? `${j.disponibles} libres` : 'Sin turnos'}
                     </span>
                   </button>
-
-
-
-
                 ))}
               </div>
             </div>
