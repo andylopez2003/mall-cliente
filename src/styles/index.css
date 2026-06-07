@@ -257,9 +257,9 @@ button:disabled { opacity: 0.42; cursor: not-allowed; }
 .jornada-grid { display: grid; grid-template-columns: 1fr; gap: 6px; }
 .jornada-card {
   background: white; border: 2px solid var(--mall-line); border-radius: 10px;
-  padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; display: flex; align-items: center; gap: 10px; width: 100%;
   cursor: pointer; font-weight: 700; transition: border-color 0.15s; text-align: left;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent; min-width: 0;
 }
 .jornada-card:not(:disabled):hover  { border-color: var(--mall-main); }
 .jornada-card:not(:disabled):active { transform: scale(0.98); }

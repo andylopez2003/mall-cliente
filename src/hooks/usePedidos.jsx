@@ -105,7 +105,7 @@ export function usePedidos() {
       return { nombre, rango, slots: info, disponibles: info.filter((s) => s.disponible).length }
     }
     return [
-      buildJornada('Mañana', '13:00 – 15:00', all.filter((s) => Number(s.slice(0, 2)) < 15)),
+      buildJornada('Medio Dia', '13:00 – 15:00', all.filter((s) => Number(s.slice(0, 2)) < 15)),
       buildJornada('Tarde',  '17:00 – 19:00', all.filter((s) => Number(s.slice(0, 2)) >= 15)),
     ]
   }
