@@ -60,7 +60,7 @@ export default function MisCupones() {
       </section>
 
       <div className="card" style={{ background: '#fffdf0', border: '1px solid #f5e08a', padding: 14 }}>
-        <strong style={{ fontSize: 13 }}>¿Cómo funciono?</strong>
+        <strong style={{ fontSize: 13 }}>¿Cómo funciona?</strong>
         <p className="muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
           En pedidos de <strong>Q150 o más</strong> ganas un cupón de <strong>Q10</strong>.
           Puedes usarlo inmediatamente en el mismo pedido o guardarlo para canjear presencialmente en tienda mostrando tu código QR.

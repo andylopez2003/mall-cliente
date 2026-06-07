@@ -271,8 +271,25 @@ export default function HacerPedido() {
           {!loadingSlots && jornadas.length > 0 && !haySlots ? (
             <div className="sin-slots-card">
               <div style={{ fontSize: 44 }}>😔</div>
-              <strong style={{ fontSize: 16 }}>No hay turnos disponibles para este día</strong>
-              <p className="muted" style={{ margin: 0, fontSize: 14 }}>Elige otro día usando los botones de arriba, o contáctanos:</p>
+              <strong style={{ fontSize: 16 }}>
+                {fechaEntrega === new Date().toISOString().slice(0, 10)
+                  ? 'Ya no hay turnos disponibles para hoy'
+                  : 'No hay turnos disponibles para este día'}
+              </strong>
+              <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+                {fechaEntrega === new Date().toISOString().slice(0, 10)
+                  ? 'Los turnos de hoy ya cerraron. Puedes pedir para mañana:'
+                  : 'Elige otro día usando los botones de arriba, o contáctanos:'}
+              </p>
+              {fechaEntrega === new Date().toISOString().slice(0, 10) ? (
+                <button className="btn-primary" type="button" style={{ justifySelf: 'center' }} onClick={() => {
+                  const manana = new Date(); manana.setDate(manana.getDate() + 1)
+                  const f = manana.toISOString().slice(0, 10)
+                  setFechaEntrega(f); refreshSlots(f)
+                }}>
+                  Ver horarios de mañana
+                </button>
+              ) : null}
               <a href="tel:33921737" className="btn-accent" style={{ textDecoration: 'none', justifySelf: 'center' }}>
                 <Phone size={16} /> 33921737
               </a>
@@ -311,7 +328,7 @@ export default function HacerPedido() {
                     className={`slot-btn${slot === s.hora ? ' slot-btn-selected' : ''}`}
                     disabled={!s.disponible} onClick={() => setSlot(s.hora)}>
                     <span className="slot-hora">{s.hora}</span>
-                    <span className="slot-label">{!s.disponible ? 'Lleno' : slot === s.hora ? '✓ Elegido' : 'Libre'}</span>
+                    <span className="slot-label">{s.cerrado ? 'Cerrado' : !s.disponible ? 'Lleno' : slot === s.hora ? '✓ Elegido' : 'Libre'}</span>
                   </button>
                 ))}
               </div>

@@ -88,12 +88,20 @@ export function usePedidos() {
     }, {})
 
     const all = config.slots_entrega
+    const isToday = targetDate === hoy
+    const now = new Date()
+    const nowMins = isToday ? (now.getHours() * 60 + now.getMinutes()) : -1
+
     function buildJornada(nombre, rango, slots) {
-      // Cada turno de 20 min admite máximo 1 pedido
-      const info = slots.map((hora) => ({
-        hora,
-        disponible: (counts[hora] || 0) === 0,
-      }))
+      const info = slots.map((hora) => {
+        const [h, m] = hora.split(':').map(Number)
+        const cerrado = isToday && nowMins >= (h * 60 + m - 30)
+        return {
+          hora,
+          disponible: !cerrado && (counts[hora] || 0) === 0,
+          cerrado,
+        }
+      })
       return { nombre, rango, slots: info, disponibles: info.filter((s) => s.disponible).length }
     }
     return [
