@@ -242,13 +242,13 @@ export default function HacerPedido() {
 
       {/* ── Paso 3: Horario ── */}
       {step === 3 ? (
-        <section className="card grid" style={{ gap: 10 }}>
-          <h2 className="font-display" style={{ margin: 0, fontSize: 17 }}>Horario de entrega</h2>
+        <section className="card grid" style={{ gap: 8, padding: 12 }}>
+          <h2 className="font-display" style={{ margin: 0, fontSize: 15 }}>Horario de entrega</h2>
 
           {/* Selector de fecha */}
           <div>
-            <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 6, color: 'var(--mall-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Día de entrega</div>
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+            <div style={{ fontWeight: 700, fontSize: 10, marginBottom: 5, color: 'var(--mall-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Día de entrega</div>
+            <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2 }}>
               {Array.from({ length: 7 }, (_, i) => {
                 const d = new Date(); d.setDate(d.getDate() + i)
                 const f = d.toISOString().slice(0, 10)
@@ -256,7 +256,7 @@ export default function HacerPedido() {
                 return (
                   <button key={f} type="button"
                     className={fechaEntrega === f ? 'btn-primary' : 'btn-outline'}
-                    style={{ whiteSpace: 'nowrap', padding: '6px 10px', minHeight: 34, fontSize: 12, flexShrink: 0 }}
+                    style={{ whiteSpace: 'nowrap', padding: '4px 9px', minHeight: 30, fontSize: 11, flexShrink: 0 }}
                     onClick={() => { setFechaEntrega(f); refreshSlots(f) }}
                   >
                     {label}
@@ -266,23 +266,23 @@ export default function HacerPedido() {
             </div>
           </div>
 
-          {loadingSlots ? <div className="muted" style={{ fontSize: 13 }}>Consultando disponibilidad...</div> : null}
+          {loadingSlots ? <div className="muted" style={{ fontSize: 12 }}>Consultando disponibilidad...</div> : null}
 
           {!loadingSlots && jornadas.length > 0 && !haySlots ? (
-            <div className="sin-slots-card">
-              <div style={{ fontSize: 44 }}>😔</div>
-              <strong style={{ fontSize: 16 }}>
+            <div style={{ textAlign: 'center', display: 'grid', gap: 8, padding: '10px 0' }}>
+              <div style={{ fontSize: 32 }}>😔</div>
+              <strong style={{ fontSize: 14 }}>
                 {fechaEntrega === new Date().toISOString().slice(0, 10)
                   ? 'Ya no hay turnos disponibles para hoy'
-                  : 'No hay turnos disponibles para este día'}
+                  : 'No hay turnos para este día'}
               </strong>
-              <p className="muted" style={{ margin: 0, fontSize: 14 }}>
+              <p className="muted" style={{ margin: 0, fontSize: 12 }}>
                 {fechaEntrega === new Date().toISOString().slice(0, 10)
-                  ? 'Los turnos de hoy ya cerraron. Puedes pedir para mañana:'
-                  : 'Elige otro día usando los botones de arriba, o contáctanos:'}
+                  ? 'Los turnos de hoy ya cerraron.'
+                  : 'Elige otro día o contáctanos:'}
               </p>
               {fechaEntrega === new Date().toISOString().slice(0, 10) ? (
-                <button className="btn-primary" type="button" style={{ justifySelf: 'center' }} onClick={() => {
+                <button className="btn-primary" type="button" style={{ justifySelf: 'center', fontSize: 13 }} onClick={() => {
                   const manana = new Date(); manana.setDate(manana.getDate() + 1)
                   const f = manana.toISOString().slice(0, 10)
                   setFechaEntrega(f); refreshSlots(f)
@@ -290,8 +290,8 @@ export default function HacerPedido() {
                   Ver horarios de mañana
                 </button>
               ) : null}
-              <a href="tel:33921737" className="btn-accent" style={{ textDecoration: 'none', justifySelf: 'center' }}>
-                <Phone size={16} /> 33921737
+              <a href="tel:33921737" className="btn-accent" style={{ textDecoration: 'none', justifySelf: 'center', fontSize: 13 }}>
+                <Phone size={14} /> 33921737
               </a>
             </div>
           ) : null}
@@ -303,13 +303,17 @@ export default function HacerPedido() {
                 {jornadas.map((j) => (
                   <button key={j.nombre} type="button" className="jornada-card" disabled={j.disponibles === 0}
                     onClick={() => { setJornadaSeleccionada(j); setSlot('') }}>
-                    <span className="jornada-icono">{j.nombre === 'Mañana' ? '🌤️' : '🌙'}</span>
+                    <span className="jornada-icono">{j.nombre === 'Medio Dia' ? '🌤️' : '🌙'}</span>
                     <strong>{j.nombre}</strong>
                     <span className="jornada-rango">{j.rango}</span>
                     <span className={j.disponibles > 0 ? 'badge-green' : 'badge-red'}>
                       {j.disponibles > 0 ? `${j.disponibles} turnos libres` : 'Sin turnos'}
                     </span>
                   </button>
+
+
+
+
                 ))}
               </div>
             </div>

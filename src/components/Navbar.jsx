@@ -17,10 +17,7 @@ export default function Navbar({ children }) {
       <header className="site-header">
         <div className="brand">
           <span className="brand-mark">M</span>
-          <div>
-            <div style={{ fontSize: 11, letterSpacing: 1.4, opacity: .75 }}>MALL</div>
-            <strong style={{ fontSize: 17 }}>Cliente</strong>
-          </div>
+          <strong style={{ fontSize: 20, letterSpacing: 1 }}>MALL</strong>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {totalItems > 0 ? <span className="badge-yellow">🛒 {totalItems}</span> : null}
