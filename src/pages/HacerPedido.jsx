@@ -312,7 +312,7 @@ export default function HacerPedido() {
                       {j.disponibles > 0 ? `${j.disponibles} libres` : 'Sin turnos'}
                     </span>
                   </button>
-                ))}
+                  ))}
               </div>
             </div>
           ) : null}

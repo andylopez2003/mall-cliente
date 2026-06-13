@@ -61,6 +61,11 @@ export function CartProvider({ children }) {
     guardarStorage([])
   }
 
+  function cargarItems(nuevosItems) {
+    setItems(nuevosItems.map((i) => ({ producto_id: i.producto_id, nombre: i.nombre, precio: i.precio, cantidad: i.cantidad })))
+    setCuponesAplicados([])
+  }
+
   function aplicarCupon(cupon) {
     setCuponesAplicados((prev) => {
       if (prev.find((c) => c.id === cupon.id)) return prev
@@ -88,6 +93,7 @@ export function CartProvider({ children }) {
       quitarItem,
       cambiarCantidad,
       limpiarCarrito,
+      cargarItems,
       aplicarCupon,
       quitarCupon,
       cuponesAplicados,

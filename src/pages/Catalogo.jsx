@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CheckCircle2, MessageCircle, Package, Phone, Plus, Search, Ticket } from 'lucide-react'
+import { CheckCircle2, Heart, MessageCircle, Package, Phone, Plus, Search, Ticket } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 import { useCatalogo } from '../hooks/useCatalogo.jsx'
 import { supabase } from '../supabase.js'
 import { money } from '../utils/format.js'
+
+function getFavoritos() {
+  try { return new Set(JSON.parse(localStorage.getItem('mall_favoritos') || '[]')) } catch { return new Set() }
+}
+function saveFavoritos(set) {
+  localStorage.setItem('mall_favoritos', JSON.stringify([...set]))
+}
 
 const ESTADO_LABEL = {
   pendiente:  { label: 'Pendiente',  color: '#87510b', bg: '#fff1d7' },
@@ -23,6 +30,17 @@ export default function Catalogo() {
   const [categoria, setCategoria] = useState('Todos')
   const [cartToast, setCartToast] = useState(null)
   const [misPedidos, setMisPedidos] = useState([])
+  const [favoritos, setFavoritos] = useState(() => getFavoritos())
+
+  function toggleFavorito(e, productoId) {
+    e.stopPropagation()
+    setFavoritos((prev) => {
+      const next = new Set(prev)
+      next.has(productoId) ? next.delete(productoId) : next.add(productoId)
+      saveFavoritos(next)
+      return next
+    })
+  }
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem('mall_mis_pedidos') || '[]')
@@ -44,10 +62,10 @@ export default function Catalogo() {
   const filteredProducts = useMemo(() => {
     return productos.filter((producto) => {
       const matchesQuery = producto.nombre.toLowerCase().includes(query.toLowerCase())
-      const matchesCategory = categoria === 'Todos' || producto.categoria === categoria
+      const matchesCategory = categoria === 'Todos' || producto.categoria === categoria || (categoria === '❤️ Favoritos' && favoritos.has(producto.id))
       return matchesQuery && matchesCategory
     })
-  }, [productos, query, categoria])
+  }, [productos, query, categoria, favoritos])
 
   function quickAdd(producto) {
     const oferta = ofertaMap[producto.id]
@@ -188,6 +206,16 @@ export default function Catalogo() {
       </section>
 
       <section style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
+        {favoritos.size > 0 ? (
+          <button
+            className={categoria === '❤️ Favoritos' ? 'btn-primary' : 'btn-outline'}
+            type="button"
+            onClick={() => setCategoria('❤️ Favoritos')}
+            style={{ whiteSpace: 'nowrap', padding: '7px 12px', minHeight: 36, fontSize: 13 }}
+          >
+            ❤️ Favoritos
+          </button>
+        ) : null}
         {categorias.map((item) => (
           <button
             key={item}
@@ -224,14 +252,24 @@ export default function Catalogo() {
                   <span className="price" style={{ fontSize: 15 }}>{money(oferta ? oferta.precio_oferta : producto.precio)}</span>
                   {oferta ? <span className="badge-yellow" style={{ marginLeft: 6, fontSize: 10 }}>Oferta</span> : null}
                 </div>
-                <button
-                  className="btn-accent"
-                  type="button"
-                  style={{ padding: '8px 10px', minHeight: 38, fontSize: 13 }}
-                  onClick={(e) => { e.stopPropagation(); quickAdd(producto) }}
-                >
-                  <Plus size={14} /> Agregar
-                </button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className="btn-accent"
+                    type="button"
+                    style={{ flex: 1, padding: '8px 6px', minHeight: 38, fontSize: 13 }}
+                    onClick={(e) => { e.stopPropagation(); quickAdd(producto) }}
+                  >
+                    <Plus size={14} /> Agregar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => toggleFavorito(e, producto.id)}
+                    style={{ padding: '8px 10px', minHeight: 38, border: '1.5px solid var(--mall-line)', borderRadius: 8, background: favoritos.has(producto.id) ? '#ffe4e8' : 'white', flexShrink: 0 }}
+                    title={favoritos.has(producto.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                  >
+                    <Heart size={15} fill={favoritos.has(producto.id) ? '#e11d48' : 'none'} color={favoritos.has(producto.id) ? '#e11d48' : 'var(--mall-muted)'} />
+                  </button>
+                </div>
               </div>
             </article>
           )

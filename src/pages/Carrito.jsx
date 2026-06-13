@@ -1,17 +1,25 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Minus, Plus, Tag, Ticket, Trash2, X } from 'lucide-react'
+import { BookmarkPlus, Minus, Plus, Tag, Ticket, Trash2, X } from 'lucide-react'
 import { useCart } from '../context/CarritoContext.jsx'
 import { supabase } from '../supabase.js'
 import { money } from '../utils/format.js'
 
+function getFrecuentes() {
+  try { return JSON.parse(localStorage.getItem('mall_frecuentes') || '[]') } catch { return [] }
+}
+
 export default function Carrito() {
   const navigate = useNavigate()
   const {
-    items, cambiarCantidad, quitarItem,
+    items, cambiarCantidad, quitarItem, limpiarCarrito,
     totalMonto, totalItems, totalConDescuento, descuentoTotal,
-    cuponesAplicados, aplicarCupon, quitarCupon,
+    cuponesAplicados, aplicarCupon, quitarCupon, cargarItems,
   } = useCart()
+
+  const [frecuentes, setFrecuentes] = useState(() => getFrecuentes())
+  const [guardandoNombre, setGuardandoNombre] = useState('')
+  const [mostrarGuardar, setMostrarGuardar] = useState(false)
 
   const [threshold, setThreshold] = useState(150)
   const [couponValue, setCouponValue] = useState(10)
@@ -45,6 +53,27 @@ export default function Carrito() {
         } catch (_) {}
       })
   }, [])
+
+  function guardarFrecuente() {
+    const nombre = guardandoNombre.trim() || `Mi pedido ${frecuentes.length + 1}`
+    const nuevo = { id: Date.now(), nombre, items: items.map((i) => ({ producto_id: i.producto_id, nombre: i.nombre, precio: i.precio, cantidad: i.cantidad })), creado: new Date().toLocaleDateString('es-GT') }
+    const actualizados = [nuevo, ...frecuentes].slice(0, 10)
+    localStorage.setItem('mall_frecuentes', JSON.stringify(actualizados))
+    setFrecuentes(actualizados)
+    setMostrarGuardar(false)
+    setGuardandoNombre('')
+  }
+
+  function cargarFrecuente(frecuente) {
+    if (cargarItems) cargarItems(frecuente.items)
+    else frecuente.items.forEach((i) => {})
+  }
+
+  function borrarFrecuente(id) {
+    const actualizados = frecuentes.filter((f) => f.id !== id)
+    localStorage.setItem('mall_frecuentes', JSON.stringify(actualizados))
+    setFrecuentes(actualizados)
+  }
 
   const belowMinimum  = totalConDescuento < minAmount
   const faltaMinimo   = Math.max(minAmount - totalConDescuento, 0)
@@ -106,6 +135,21 @@ export default function Carrito() {
         <div className="card grid">
           <strong>Tu carrito está vacío.</strong>
           <Link className="btn-primary" to="/">Ir al catálogo</Link>
+          {frecuentes.length > 0 ? (
+            <div style={{ borderTop: '1px solid var(--mall-line)', paddingTop: 14, display: 'grid', gap: 10 }}>
+              <strong style={{ fontSize: 14 }}>📋 Pedidos guardados</strong>
+              {frecuentes.map((f) => (
+                <div key={f.id} style={{ border: '1.5px solid var(--mall-line)', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{f.nombre}</div>
+                    <div className="muted" style={{ fontSize: 11 }}>{f.items.length} productos · {f.creado}</div>
+                  </div>
+                  <button className="btn-primary" type="button" style={{ fontSize: 12, padding: '6px 12px', minHeight: 34, flexShrink: 0 }} onClick={() => cargarFrecuente(f)}>Cargar</button>
+                  <button type="button" onClick={() => borrarFrecuente(f.id)} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4, flexShrink: 0 }}><X size={15} /></button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : (
         <>
@@ -272,15 +316,38 @@ export default function Carrito() {
               </div>
             ) : null}
 
-            <button
-              className="btn-accent"
-              type="button"
-              onClick={() => navigate('/pedido')}
-              disabled={belowMinimum}
-            >
+            <button className="btn-accent" type="button" onClick={() => navigate('/pedido')} disabled={belowMinimum}>
               Continuar pedido
             </button>
+
+            {mostrarGuardar ? (
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <input className="input-field" placeholder="Nombre del pedido (ej: Compra del jueves)" value={guardandoNombre} onChange={(e) => setGuardandoNombre(e.target.value)} style={{ flex: 1 }} />
+                <button className="btn-primary" type="button" onClick={guardarFrecuente} style={{ flexShrink: 0, padding: '0 14px' }}>Guardar</button>
+                <button type="button" onClick={() => setMostrarGuardar(false)} style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--mall-muted)', padding: 4, flexShrink: 0 }}><X size={16} /></button>
+              </div>
+            ) : (
+              <button type="button" className="btn-outline" style={{ fontSize: 13 }} onClick={() => setMostrarGuardar(true)}>
+                <BookmarkPlus size={15} /> Guardar como pedido frecuente
+              </button>
+            )}
           </section>
+
+          {frecuentes.length > 0 ? (
+            <section className="card grid" style={{ gap: 10 }}>
+              <strong style={{ fontSize: 14 }}>📋 Pedidos guardados</strong>
+              {frecuentes.map((f) => (
+                <div key={f.id} style={{ border: '1.5px solid var(--mall-line)', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{f.nombre}</div>
+                    <div className="muted" style={{ fontSize: 11 }}>{f.items.length} productos · {f.creado}</div>
+                  </div>
+                  <button className="btn-outline" type="button" style={{ fontSize: 12, padding: '6px 12px', minHeight: 34, flexShrink: 0 }} onClick={() => cargarFrecuente(f)}>Cargar</button>
+                  <button type="button" onClick={() => borrarFrecuente(f.id)} style={{ background: 'none', border: 0, color: 'var(--mall-muted)', cursor: 'pointer', padding: 4, flexShrink: 0 }}><X size={15} /></button>
+                </div>
+              ))}
+            </section>
+          ) : null}
         </>
       )}
     </div>
